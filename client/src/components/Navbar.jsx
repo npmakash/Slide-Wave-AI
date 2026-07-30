@@ -11,7 +11,7 @@ export default function Navbar({ onOpenHistory }) {
         <span className="brand-icon">
           <Presentation size={24} />
         </span>
-        <span>Google Slides Bulk Generator</span>
+        <span>Slide Wave AI</span>
       </div>
 
       <div className="user-nav">

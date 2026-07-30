@@ -1,7 +1,6 @@
-# Google Slides Bulk Generator
+# Slide Wave AI
 
-Production-ready web application built using **Node.js + Express** backend and **Vanilla HTML5, CSS3, JavaScript** frontend. 
-Automatically generates bulk Google Slides presentations from either **Google Sheets** or **JSON data** by replacing placeholders dynamically using Google REST APIs (OAuth 2.0, Drive, Slides, Sheets).
+Automate bulk presentation generation in Google Slides using Google Sheets, raw text, JSON data, or Gemini AI.
 
 ---
 

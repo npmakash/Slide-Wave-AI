@@ -126,7 +126,7 @@ app.use((err, req, res, _next) => {
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 app.listen(PORT, HOST, () => {
-  logger.info(`🚀 Google Slides Bulk Generator running at:`);
+  logger.info(`🚀 Slide Wave AI running at:`);
   logger.info(`   - Local:   http://localhost:${PORT}`);
   logger.info(`   - Network: http://10.13.104.179:${PORT}`);
   scheduleCleanup();
