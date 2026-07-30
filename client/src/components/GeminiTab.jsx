@@ -98,14 +98,13 @@ export default function GeminiTab({ onStartJob, activeJobResult }) {
         return;
       }
 
-      showToast('Slide presentation generation started!', 'info');
       const genRes = await api.post('/api/generate-json', {
         templateUrl,
         outputName,
         data: dataToUse,
       });
 
-      showToast('Gemini Slide Generation started!', 'success');
+      showToast('Gemini slide generation started!', 'success');
       onStartJob(genRes.data.jobId);
     } catch (err) {
       showToast(err.response?.data?.error || err.message, 'error');

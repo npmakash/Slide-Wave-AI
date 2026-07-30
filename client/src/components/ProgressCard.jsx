@@ -11,9 +11,11 @@ export default function ProgressCard({ jobId, onJobCompleted }) {
 
   const { showToast } = useToast();
   const pollTimerRef = useRef(null);
+  const hasNotifiedRef = useRef(false);
 
   useEffect(() => {
     if (!jobId) return;
+    hasNotifiedRef.current = false;
 
     const checkStatus = async () => {
       try {
@@ -24,17 +26,26 @@ export default function ProgressCard({ jobId, onJobCompleted }) {
         if (prog) setProgress(prog);
 
         if (status === 'done') {
-          clearInterval(pollTimerRef.current);
+          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
           setResult(resData);
-          showToast('Presentation generated successfully!', 'success');
+          if (!hasNotifiedRef.current) {
+            hasNotifiedRef.current = true;
+            showToast('Presentation generated successfully!', 'success');
+          }
           if (onJobCompleted) onJobCompleted(resData);
         } else if (status === 'error') {
-          clearInterval(pollTimerRef.current);
+          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
           setErrorMsg(error || 'Generation failed');
-          showToast(error || 'Generation failed', 'error');
+          if (!hasNotifiedRef.current) {
+            hasNotifiedRef.current = true;
+            showToast(error || 'Generation failed', 'error');
+          }
         } else if (status === 'cancelled') {
-          clearInterval(pollTimerRef.current);
-          showToast('Job was cancelled', 'warning');
+          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+          if (!hasNotifiedRef.current) {
+            hasNotifiedRef.current = true;
+            showToast('Job was cancelled', 'warning');
+          }
         }
       } catch (err) {
         console.error('Polling status error:', err);
