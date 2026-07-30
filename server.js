@@ -35,6 +35,9 @@ if (!fs.existsSync(historyFile)) fs.writeFileSync(historyFile, '[]', 'utf-8');
 // ─── App Setup ────────────────────────────────────────────────────────────────
 const app = express();
 
+// Trust reverse proxy (required for HTTPS session cookies on Render, Railway, Heroku)
+app.set('trust proxy', 1);
+
 // Security headers — content-security-policy relaxed for Google APIs
 app.use(
   helmet({
@@ -54,7 +57,7 @@ app.use(
 
 app.use(
   cors({
-    origin: process.env.FRONTEND_ORIGIN || 'http://localhost:3000',
+    origin: (origin, callback) => callback(null, true),
     credentials: true,
   })
 );
@@ -74,6 +77,7 @@ app.use(
     saveUninitialized: false,
     cookie: {
       secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
