@@ -65,12 +65,13 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ─── Session ──────────────────────────────────────────────────────────────────
+// ─── Session (7 Days / 1 Week Persistence) ──────────────────────────────────
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 app.use(
   session({
     store: new FileStore({
       path: path.join(__dirname, 'sessions'),
-      ttl: 86400, // 24 hours
+      ttl: 7 * 86400, // 7 days (604,800 seconds)
     }),
     secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
     resave: false,
@@ -79,7 +80,7 @@ app.use(
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: SEVEN_DAYS_MS, // 7 days (1 week) persistence
     },
   })
 );
