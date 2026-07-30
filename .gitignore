@@ -1,0 +1,29 @@
+# Node modules
+node_modules/
+client/node_modules/
+
+# Environment variables
+.env
+.env.local
+
+# Temp and Upload files
+uploads/*
+!uploads/.gitkeep
+temp/*
+!temp/.gitkeep
+sessions/*
+!sessions/.gitkeep
+data/*
+!data/.gitkeep
+
+# Build outputs
+client/dist/
+
+# Logs
+logs/
+*.log
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
