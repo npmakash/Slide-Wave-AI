@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, Rocket, FileText, Image as ImageIcon, Link, FileSpreadsheet, Type, Calendar, CheckSquare } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Rocket, FileText, Image as ImageIcon, Link, FileSpreadsheet, Type, Calendar } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useCredits } from '../context/CreditContext';
@@ -7,8 +7,8 @@ import ConfirmCreditModal from './ConfirmCreditModal';
 
 const DEFAULT_TEMPLATE_URL = 'https://docs.google.com/presentation/d/1ecwiq4ZlzlQv8kapXBWEXViSXxhDIPnsgmT7F4-EpPo/edit?slide=id.g3f804837050_2_45#slide=id.g3f804837050_2_45';
 
-export default function SheetTab({ onStartJob, onOpenPreview, activeJobResult }) {
-  const [templateUrl, setTemplateUrl] = useState(DEFAULT_TEMPLATE_URL);
+export default function SheetTab({ onStartJob, onOpenPreview, activeJobResult, selectedTemplateUrl }) {
+  const [templateUrl, setTemplateUrl] = useState(selectedTemplateUrl || DEFAULT_TEMPLATE_URL);
   const [sheetUrl, setSheetUrl] = useState('');
   const [outputName, setOutputName] = useState('');
   const [skipEmptyRows, setSkipEmptyRows] = useState(true);
@@ -20,6 +20,12 @@ export default function SheetTab({ onStartJob, onOpenPreview, activeJobResult })
 
   const { showToast } = useToast();
   const { fetchCredits, openBuyModal } = useCredits();
+
+  useEffect(() => {
+    if (selectedTemplateUrl) {
+      setTemplateUrl(selectedTemplateUrl);
+    }
+  }, [selectedTemplateUrl]);
 
   const handlePreview = () => {
     if (!templateUrl) {
@@ -153,7 +159,7 @@ export default function SheetTab({ onStartJob, onOpenPreview, activeJobResult })
           </div>
         </div>
 
-        <div className="form-group" style={{ display: 'flex', gap: '1.75rem', flexWrap: 'wrap', alignItems: 'center', background: '#f8fafc', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-card-border)' }}>
+        <div className="form-group" style={{ display: 'flex', gap: '1.75rem', flexWrap: 'wrap', alignItems: 'center', background: 'var(--bg-body)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-card-border)' }}>
           <label className="checkbox-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', margin: 0 }}>
             <input
               type="checkbox"

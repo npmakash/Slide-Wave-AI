@@ -1,5 +1,5 @@
 import React from 'react';
-import { Presentation, Table, Code, Sparkles, Clock, User, X, LogOut, Sun, Moon } from 'lucide-react';
+import { Presentation, Table, Code, Sparkles, Clock, User, X, LogOut, Sun, Moon, ShieldCheck, Users, LayoutTemplate, Layers } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -7,7 +7,9 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onClose, onOp
   const { user, authenticated, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
 
-  const navItems = [
+  const isAdmin = Boolean(user && user.isAdmin);
+
+  const regularNavItems = [
     {
       id: 'sheet',
       label: 'Google Sheets',
@@ -28,12 +30,43 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onClose, onOp
       badge: 'AI Powered',
     },
     {
+      id: 'templates',
+      label: 'Slide Templates',
+      sublabel: 'Browse pre-made templates',
+      icon: LayoutTemplate,
+      badge: 'NEW',
+    },
+    {
       id: 'history',
       label: 'Generation History',
       sublabel: 'View past presentations',
       icon: Clock,
     },
   ];
+
+  const adminNavItems = [
+    {
+      id: 'admin-users',
+      label: 'User Directory & Credits',
+      sublabel: 'Manage users & add credits',
+      icon: Users,
+      badge: 'ADMIN',
+    },
+    {
+      id: 'admin-templates',
+      label: 'Manage Templates',
+      sublabel: 'Create & edit slide templates',
+      icon: Layers,
+    },
+    {
+      id: 'history',
+      label: 'All Presentations History',
+      sublabel: 'View generated files',
+      icon: Clock,
+    },
+  ];
+
+  const navItems = isAdmin ? adminNavItems : regularNavItems;
 
   return (
     <>
@@ -51,11 +84,11 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onClose, onOp
         <div className="sidebar-header">
           <div className="sidebar-brand">
             <div className="sidebar-brand-icon">
-              <Presentation size={22} />
+              {isAdmin ? <ShieldCheck size={22} /> : <Presentation size={22} />}
             </div>
             <div className="sidebar-brand-text">
               <h2>Slide Wave AI</h2>
-              <span>Bulk Presentation Generator</span>
+              <span>{isAdmin ? 'Admin Console' : 'Bulk Presentation Generator'}</span>
             </div>
           </div>
 
@@ -70,7 +103,9 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onClose, onOp
 
         {/* Navigation Menu Section */}
         <nav className="sidebar-nav">
-          <div className="sidebar-nav-title">COMPOSER MODES</div>
+          <div className="sidebar-nav-title">
+            {isAdmin ? 'ADMIN CONTROL PANELS' : 'COMPOSER MODES'}
+          </div>
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -124,7 +159,9 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onClose, onOp
                 </div>
               )}
               <div className="sidebar-user-info">
-                <span className="user-name">{user.name || 'User Account'}</span>
+                <span className="user-name">
+                  {user.name || 'User Account'} {isAdmin ? '👑' : ''}
+                </span>
                 <span className="user-email">{user.email || 'Google Account'}</span>
               </div>
               <button

@@ -1,26 +1,34 @@
 import React from 'react';
-import { Menu, Sparkles, PlusCircle, LogOut, User, Table, Code, Clock, Sun, Moon } from 'lucide-react';
+import { Menu, Sparkles, PlusCircle, User, Table, Code, Clock, Sun, Moon, ShieldCheck, Users, LayoutTemplate, Layers } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCredits } from '../context/CreditContext';
 import { useTheme } from '../context/ThemeContext';
 
 export default function Navbar({ activeTab, onToggleMobileSidebar, onOpenBuyCredits, onOpenAccount }) {
-  const { user, authenticated, logout } = useAuth();
+  const { user, authenticated } = useAuth();
   const { balance } = useCredits();
   const { isDark, toggleTheme } = useTheme();
 
+  const isAdmin = Boolean(user && user.isAdmin);
+
   const getSectionInfo = () => {
     switch (activeTab) {
+      case 'admin-users':
+        return { title: 'Admin Directory & Credit Manager', icon: Users };
+      case 'admin-templates':
+        return { title: 'Admin Template Manager', icon: Layers };
       case 'sheet':
         return { title: 'Google Sheet Generator', icon: Table };
       case 'json':
         return { title: 'JSON Array Generator', icon: Code };
       case 'gemini':
         return { title: 'Gemini AI Generator', icon: Sparkles };
+      case 'templates':
+        return { title: 'Slide Templates Gallery', icon: LayoutTemplate };
       case 'history':
-        return { title: 'Generation History', icon: Clock };
+        return { title: isAdmin ? 'All Presentation Logs' : 'Generation History', icon: Clock };
       default:
-        return { title: 'Presentation Generator', icon: Table };
+        return { title: isAdmin ? 'Admin Console' : 'Presentation Generator', icon: ShieldCheck };
     }
   };
 
@@ -42,6 +50,11 @@ export default function Navbar({ activeTab, onToggleMobileSidebar, onOpenBuyCred
         <div className="navbar-section-title">
           <SectionIcon size={20} color="var(--primary)" />
           <span>{currentSection.title}</span>
+          {isAdmin && (
+            <span style={{ fontSize: '0.72rem', background: 'var(--primary-light)', color: 'var(--primary)', padding: '0.15rem 0.55rem', borderRadius: '12px', fontWeight: 700 }}>
+              ADMIN MODE
+            </span>
+          )}
         </div>
       </div>
 
@@ -60,27 +73,29 @@ export default function Navbar({ activeTab, onToggleMobileSidebar, onOpenBuyCred
         {authenticated && user && (
           <>
             {/* Header Navbar Credits Pill & Top-up CTA */}
-            <div
-              className="credits-pill-header"
-              onClick={onOpenBuyCredits}
-              title="Click to Buy Credits & View Plans"
-            >
-              <span className="credits-pill-text">
-                <Sparkles size={15} />
-                <span>{balance !== undefined && balance !== null ? balance : 0} Credits</span>
-              </span>
+            {!isAdmin && (
+              <div
+                className="credits-pill-header"
+                onClick={onOpenBuyCredits}
+                title="Click to Buy Credits & View Plans"
+              >
+                <span className="credits-pill-text">
+                  <Sparkles size={15} />
+                  <span>{balance !== undefined && balance !== null ? balance : 0} Credits</span>
+                </span>
 
-              <button type="button" className="credits-pill-btn">
-                <PlusCircle size={13} />
-                <span>Top Up</span>
-              </button>
-            </div>
+                <button type="button" className="credits-pill-btn">
+                  <PlusCircle size={13} />
+                  <span>Top Up</span>
+                </button>
+              </div>
+            )}
 
             {/* User Profile Avatar */}
             <div
               className="navbar-user-trigger"
               onClick={onOpenAccount}
-              title="View Profile & Credit Transactions"
+              title="View Profile & Account Information"
             >
               {user.picture ? (
                 <img src={user.picture} alt="Avatar" className="navbar-avatar" />

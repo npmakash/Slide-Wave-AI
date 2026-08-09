@@ -5,6 +5,7 @@
 
 const GoogleAuthService = require('../services/GoogleAuthService');
 const CreditService = require('../services/CreditService');
+const { ADMIN_EMAIL } = require('../middleware/admin.middleware');
 const logger = require('../utils/logger');
 
 
@@ -44,13 +45,18 @@ class AuthController {
 
       // Sync user profile & credits with MongoDB
       const dbUser = await CreditService.syncUserWithDB(googleUserInfo);
-      req.session.user = dbUser;
+      const isAdmin = Boolean(dbUser.email && dbUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+
+      req.session.user = {
+        ...dbUser,
+        isAdmin,
+      };
 
       await new Promise((resolve, reject) =>
         req.session.save((err) => (err ? reject(err) : resolve()))
       );
 
-      logger.info(`User logged in and synced to DB: ${dbUser.email}`);
+      logger.info(`User logged in (Admin=${isAdmin}): ${dbUser.email}`);
 
       res.redirect('/?login=success');
     } catch (err) {
@@ -62,9 +68,13 @@ class AuthController {
   /** GET /auth/status */
   static async status(req, res) {
     if (req.session?.tokens && req.session?.user) {
+      const isAdmin = Boolean(req.session.user.email && req.session.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
       return res.json({
         authenticated: true,
-        user: req.session.user,
+        user: {
+          ...req.session.user,
+          isAdmin,
+        },
       });
     }
     return res.json({ authenticated: false });

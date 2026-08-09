@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Upload, Rocket, FileText, Image as ImageIcon, Code, Link, Type, FileCode } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../context/ToastContext';
@@ -11,8 +11,8 @@ const DEFAULT_JSON = `[
   { "name": "Alice", "city": "London", "score": "88" }
 ]`;
 
-export default function JsonTab({ onStartJob, activeJobResult }) {
-  const [templateUrl, setTemplateUrl] = useState(DEFAULT_TEMPLATE_URL);
+export default function JsonTab({ onStartJob, activeJobResult, selectedTemplateUrl }) {
+  const [templateUrl, setTemplateUrl] = useState(selectedTemplateUrl || DEFAULT_TEMPLATE_URL);
   const [jsonString, setJsonString] = useState(DEFAULT_JSON);
   const [outputName, setOutputName] = useState('');
   const [dragOver, setDragOver] = useState(false);
@@ -24,6 +24,12 @@ export default function JsonTab({ onStartJob, activeJobResult }) {
 
   const { showToast } = useToast();
   const { fetchCredits, openBuyModal } = useCredits();
+
+  useEffect(() => {
+    if (selectedTemplateUrl) {
+      setTemplateUrl(selectedTemplateUrl);
+    }
+  }, [selectedTemplateUrl]);
 
   const handleFileUpload = (file) => {
     if (!file.name.endsWith('.json')) {

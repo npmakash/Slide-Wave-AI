@@ -20,6 +20,8 @@ const downloadRoutes = require('./routes/download.routes');
 const historyRoutes = require('./routes/history.routes');
 const geminiRoutes = require('./routes/gemini.routes');
 const creditRoutes = require('./routes/credit.routes');
+const adminRoutes = require('./routes/admin.routes');
+const templateRoutes = require('./routes/template.routes');
 const connectDB = require('./config/db');
 const logger = require('./utils/logger');
 const { scheduleCleanup } = require('./utils/cleanup');
@@ -31,11 +33,13 @@ const { scheduleCleanup } = require('./utils/cleanup');
   if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true });
 });
 
-// ─── Ensure history.json & credits.json exist ────────────────────────────────
+// ─── Ensure history.json, credits.json & templates.json exist ─────────────────
 const historyFile = path.join(__dirname, 'data', 'history.json');
 if (!fs.existsSync(historyFile)) fs.writeFileSync(historyFile, '[]', 'utf-8');
 const creditsFile = path.join(__dirname, 'data', 'credits.json');
 if (!fs.existsSync(creditsFile)) fs.writeFileSync(creditsFile, '{}', 'utf-8');
+const templatesFile = path.join(__dirname, 'data', 'templates.json');
+if (!fs.existsSync(templatesFile)) fs.writeFileSync(templatesFile, '[]', 'utf-8');
 
 // ─── App Setup ────────────────────────────────────────────────────────────────
 const app = express();
@@ -114,6 +118,8 @@ app.use('/api', downloadRoutes);
 app.use('/api', historyRoutes);
 app.use('/api', geminiRoutes);
 app.use('/api', creditRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/templates', templateRoutes);
 
 
 // ─── SPA Fallback ─────────────────────────────────────────────────────────────
