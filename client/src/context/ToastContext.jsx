@@ -7,12 +7,17 @@ export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
   const showToast = useCallback((message, type = 'info', duration = 4000) => {
-    const id = Date.now() + Math.random();
-    setToasts((prev) => [...prev, { id, message, type }]);
-
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, duration);
+    setToasts((prev) => {
+      // Prevent stacking duplicate toasts with the exact same message
+      if (prev.some((t) => t.message === message)) {
+        return prev;
+      }
+      const id = Date.now() + Math.random();
+      setTimeout(() => {
+        setToasts((curr) => curr.filter((t) => t.id !== id));
+      }, duration);
+      return [...prev, { id, message, type }];
+    });
   }, []);
 
   const removeToast = (id) => {

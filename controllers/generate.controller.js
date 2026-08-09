@@ -12,8 +12,10 @@ const SlidesService = require('../services/SlidesService');
 const SheetsService = require('../services/SheetsService');
 const ExportService = require('../services/ExportService');
 const ZipService = require('../services/ZipService');
+const CreditService = require('../services/CreditService');
 const { extractGoogleFileId } = require('../middleware/validate.middleware');
 const logger = require('../utils/logger');
+
 
 // In-memory active jobs map
 const jobs = new Map();
@@ -86,10 +88,13 @@ class GenerateController {
         error: null,
       };
 
+      const userId = req.session?.user?.email || req.sessionID || 'default_user';
+
       jobs.set(jobId, job);
 
       // Start async background execution
       GenerateController.runSheetJob(job, auth, {
+        userId,
         templateId,
         sheetId,
         outputName,
@@ -107,7 +112,7 @@ class GenerateController {
 
   /** Background execution for Sheet job */
   static async runSheetJob(job, auth, params) {
-    const { templateId, sheetId, outputName, skipEmptyRows, sheetName, dateFormat } = params;
+    const { userId, templateId, sheetId, outputName, skipEmptyRows, sheetName, dateFormat } = params;
 
     const log = (msg) => {
       const entry = `[${new Date().toLocaleTimeString()}] ${msg}`;
@@ -141,9 +146,15 @@ class GenerateController {
         throw new Error('Google Sheet contained no data rows to generate slides from.');
       }
 
+      // Deduct credits for Sheet rows
+      await CreditService.deductCredits(userId, records.length, `Sheet Slide Generation (${records.length} slides)`);
+      log(`Deducted ${records.length} credits for slide generation`);
+
+
       checkCancelled();
       log(`Read ${records.length} data rows and ${headers.length} columns`);
       updateProgress('copying_template', 0, records.length, 'Copying template presentation...');
+
 
       // Copy template to new presentation file
       const presentationId = await driveService.copyFile(templateId, outputName);
@@ -210,6 +221,17 @@ class GenerateController {
     try {
       const { templateUrl, outputName, data, dateFormat } = req.body;
 
+      if (!Array.isArray(data) || data.length === 0) {
+        return res.status(400).json({ error: 'Data array cannot be empty.' });
+      }
+
+      const userId = req.session?.user?.email || req.sessionID || 'default_user';
+      const requiredCredits = data.length;
+
+      // Deduct credits upfront for JSON generation
+      await CreditService.deductCredits(userId, requiredCredits, `JSON Slide Generation (${requiredCredits} slides)`);
+
+
       const templateId = extractGoogleFileId(templateUrl);
       const auth = GoogleAuthService.getClientFromSession(req.session);
 
@@ -238,9 +260,10 @@ class GenerateController {
       res.json({ success: true, jobId, message: 'JSON generation started' });
     } catch (err) {
       logger.error(`JSON generate init error: ${err.message}`);
-      res.status(400).json({ error: err.message });
+      res.status(err.message?.includes('Insufficient credits') ? 402 : 400).json({ error: err.message, code: err.message?.includes('Insufficient credits') ? 'INSUFFICIENT_CREDITS' : 'BAD_REQUEST' });
     }
   }
+
 
   /** Background execution for JSON job */
   static async runJsonJob(job, auth, params) {

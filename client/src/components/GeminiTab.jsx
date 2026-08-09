@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Sparkles, Rocket, FileText, Image as ImageIcon, Key, HelpCircle, Code, AlignLeft } from 'lucide-react';
+import { Sparkles, Rocket, FileText, Image as ImageIcon, Key, HelpCircle, Code, AlignLeft, Link, Type, Hash, BarChart } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { useCredits } from '../context/CreditContext';
+import ConfirmCreditModal from './ConfirmCreditModal';
 
 const DEFAULT_TEMPLATE_URL = 'https://docs.google.com/presentation/d/1ecwiq4ZlzlQv8kapXBWEXViSXxhDIPnsgmT7F4-EpPo/edit?slide=id.g3f804837050_2_45#slide=id.g3f804837050_2_45';
 
@@ -26,7 +28,12 @@ export default function GeminiTab({ onStartJob, activeJobResult }) {
   const [questions, setQuestions] = useState(null);
   const [jsonText, setJsonText] = useState('');
 
+  // Credit Confirmation modal state
+  const [estimateData, setEstimateData] = useState(null);
+  const [parsedData, setParsedData] = useState(null);
+
   const { showToast } = useToast();
+  const { fetchCredits, openBuyModal } = useCredits();
 
   const handleParseOrGenerate = async () => {
     setIsProcessing(true);
@@ -89,7 +96,6 @@ export default function GeminiTab({ onStartJob, activeJobResult }) {
 
       let dataToUse = questions;
 
-      // If questions haven't been parsed yet, parse/generate them now
       if (!dataToUse || dataToUse.length === 0) {
         dataToUse = await handleParseOrGenerate();
       }
@@ -98,13 +104,34 @@ export default function GeminiTab({ onStartJob, activeJobResult }) {
         return;
       }
 
-      const genRes = await api.post('/api/generate-json', {
-        templateUrl,
-        outputName,
+      const estimateRes = await api.post('/api/credits/estimate', {
+        sourceType: 'gemini',
         data: dataToUse,
       });
 
+      if (estimateRes.data.success) {
+        setParsedData(dataToUse);
+        setEstimateData(estimateRes.data);
+      }
+    } catch (err) {
+      showToast(err.response?.data?.error || err.message, 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleConfirmGeneration = async () => {
+    setEstimateData(null);
+    try {
+      setIsProcessing(true);
+      const genRes = await api.post('/api/generate-json', {
+        templateUrl,
+        outputName,
+        data: parsedData,
+      });
+
       showToast('Gemini slide generation started!', 'success');
+      await fetchCredits();
       onStartJob(genRes.data.jobId);
     } catch (err) {
       showToast(err.response?.data?.error || err.message, 'error');
@@ -117,31 +144,55 @@ export default function GeminiTab({ onStartJob, activeJobResult }) {
 
   return (
     <div>
+      <div className="card-header-title">
+        <Sparkles size={22} color="var(--accent)" />
+        <span>Generate Presentations with Gemini AI</span>
+      </div>
+
       <form onSubmit={handleGenerateFullFlow}>
         {/* Input Mode Selector & AI Box */}
-        <div style={{ background: 'rgba(139, 92, 246, 0.08)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(139, 92, 246, 0.25)', marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
-            <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#a78bfa' }}>
+        <div style={{ background: 'var(--accent-light)', padding: '1.35rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--accent-border)', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.1rem' }}>
+            <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#6d28d9', fontSize: '1rem', fontWeight: 600, margin: 0 }}>
               <Sparkles size={20} />
               <span>Gemini AI Question Generator</span>
             </h4>
 
             {/* Sub-tabs for Paste vs Topic Prompt */}
-            <div style={{ display: 'flex', gap: '0.4rem', background: 'rgba(15, 23, 42, 0.6)', padding: '0.25rem', borderRadius: 'var(--radius-sm)' }}>
+            <div style={{ display: 'flex', gap: '0.35rem', background: '#ffffff', padding: '0.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--accent-border)' }}>
               <button
                 type="button"
-                className={`tab-btn ${inputMode === 'paste' ? 'active' : ''}`}
+                className="btn"
                 onClick={() => setInputMode('paste')}
-                style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}
+                style={{
+                  padding: '0.35rem 0.85rem',
+                  fontSize: '0.82rem',
+                  borderRadius: 'var(--radius-sm)',
+                  height: 'auto',
+                  minHeight: '32px',
+                  background: inputMode === 'paste' ? 'var(--accent)' : 'transparent',
+                  color: inputMode === 'paste' ? '#ffffff' : 'var(--text-secondary)',
+                  border: 'none',
+                }}
               >
                 <AlignLeft size={14} />
                 <span>Paste Text / TSV</span>
               </button>
+
               <button
                 type="button"
-                className={`tab-btn ${inputMode === 'topic' ? 'active' : ''}`}
+                className="btn"
                 onClick={() => setInputMode('topic')}
-                style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}
+                style={{
+                  padding: '0.35rem 0.85rem',
+                  fontSize: '0.82rem',
+                  borderRadius: 'var(--radius-sm)',
+                  height: 'auto',
+                  minHeight: '32px',
+                  background: inputMode === 'topic' ? 'var(--accent)' : 'transparent',
+                  color: inputMode === 'topic' ? '#ffffff' : 'var(--text-secondary)',
+                  border: 'none',
+                }}
               >
                 <Sparkles size={14} />
                 <span>AI Topic Prompt</span>
@@ -151,7 +202,10 @@ export default function GeminiTab({ onStartJob, activeJobResult }) {
 
           {inputMode === 'paste' ? (
             <div className="form-group">
-              <label htmlFor="raw-text-input">Paste Raw Questions & Options Text *</label>
+              <label htmlFor="raw-text-input">
+                <AlignLeft size={16} />
+                <span>Paste Raw Questions & Options Text *</span>
+              </label>
               <textarea
                 id="raw-text-input"
                 className="form-control"
@@ -164,13 +218,16 @@ export default function GeminiTab({ onStartJob, activeJobResult }) {
                 style={{ minHeight: '140px', fontSize: '0.85rem' }}
               />
               <div className="help-text">
-                Paste tabular data (number, question, optionA, optionB, optionC, optionD) or informal text. AI will parse it automatically into slides JSON.
+                Paste tabular data or plain text. AI will parse questions into slide objects.
               </div>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label htmlFor="gemini-topic">Quiz Topic / Subject *</label>
+                <label htmlFor="gemini-topic">
+                  <Type size={15} />
+                  <span>Quiz Topic / Subject *</span>
+                </label>
                 <input
                   type="text"
                   id="gemini-topic"
@@ -185,7 +242,10 @@ export default function GeminiTab({ onStartJob, activeJobResult }) {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label htmlFor="gemini-count">Questions Count</label>
+                <label htmlFor="gemini-count">
+                  <Hash size={15} />
+                  <span>Questions Count</span>
+                </label>
                 <select
                   id="gemini-count"
                   className="form-control"
@@ -203,7 +263,10 @@ export default function GeminiTab({ onStartJob, activeJobResult }) {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label htmlFor="gemini-diff">Difficulty Level</label>
+                <label htmlFor="gemini-diff">
+                  <BarChart size={15} />
+                  <span>Difficulty Level</span>
+                </label>
                 <select
                   id="gemini-diff"
                   className="form-control"
@@ -219,8 +282,8 @@ export default function GeminiTab({ onStartJob, activeJobResult }) {
           )}
 
           <div className="form-group" style={{ marginBottom: '1rem' }}>
-            <label htmlFor="gemini-key" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-              <Key size={14} />
+            <label htmlFor="gemini-key">
+              <Key size={15} />
               <span>Gemini API Key (Optional if set in server .env)</span>
             </label>
             <input
@@ -238,7 +301,7 @@ export default function GeminiTab({ onStartJob, activeJobResult }) {
             className="btn btn-secondary"
             onClick={handleParseOrGenerate}
             disabled={isProcessing}
-            style={{ width: '100%', border: '1px solid #8b5cf6', color: '#c4b5fd' }}
+            style={{ width: '100%', borderColor: 'var(--accent)', color: '#6d28d9', background: '#ffffff' }}
           >
             {isProcessing ? <div className="spinner" /> : <Sparkles size={16} />}
             <span>✨ Parse & Preview Questions Only</span>
@@ -247,8 +310,8 @@ export default function GeminiTab({ onStartJob, activeJobResult }) {
 
         {/* Question Preview Table */}
         {questions && questions.length > 0 && (
-          <div style={{ marginBottom: '1.5rem', background: 'rgba(15, 23, 42, 0.5)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-card-border)' }}>
-            <h5 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#10b981' }}>
+          <div style={{ marginBottom: '1.5rem', background: '#ffffff', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-card-border)', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.02)' }}>
+            <h5 style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#047857', fontSize: '0.95rem', fontWeight: 600 }}>
               <HelpCircle size={16} />
               <span>AI Mapped Placeholders ({questions.length} Slides)</span>
             </h5>
@@ -305,38 +368,50 @@ export default function GeminiTab({ onStartJob, activeJobResult }) {
 
         {/* Slide Setup Inputs */}
         <div className="form-group">
-          <label htmlFor="gemini-template-url">Template Slide URL *</label>
-          <input
-            type="url"
-            id="gemini-template-url"
-            className="form-control"
-            value={templateUrl}
-            onChange={(e) => setTemplateUrl(e.target.value)}
-            placeholder="https://docs.google.com/presentation/d/1abc.../edit"
-            required
-          />
+          <label htmlFor="gemini-template-url">
+            <Link size={16} />
+            <span>Template Slide URL *</span>
+          </label>
+          <div className="input-with-icon">
+            <Link size={17} className="input-icon" />
+            <input
+              type="url"
+              id="gemini-template-url"
+              className="form-control"
+              value={templateUrl}
+              onChange={(e) => setTemplateUrl(e.target.value)}
+              placeholder="https://docs.google.com/presentation/d/1abc.../edit"
+              required
+            />
+          </div>
           <div className="help-text">
             Slide template containing placeholders: <code>{'{{number}}'}</code>, <code>{'{{question}}'}</code>, <code>{'{{optionA}}'}</code>, <code>{'{{optionB}}'}</code>, <code>{'{{optionC}}'}</code>, <code>{'{{optionD}}'}</code>
           </div>
         </div>
 
         <div className="form-group">
-          <label htmlFor="gemini-output-name">Output Presentation Name *</label>
-          <input
-            type="text"
-            id="gemini-output-name"
-            className="form-control"
-            value={outputName}
-            onChange={(e) => setOutputName(e.target.value)}
-            placeholder="e.g. Gemini Quiz Presentation"
-            required
-          />
+          <label htmlFor="gemini-output-name">
+            <Type size={16} />
+            <span>Output Presentation Name *</span>
+          </label>
+          <div className="input-with-icon">
+            <Type size={17} className="input-icon" />
+            <input
+              type="text"
+              id="gemini-output-name"
+              className="form-control"
+              value={outputName}
+              onChange={(e) => setOutputName(e.target.value)}
+              placeholder="e.g. Gemini Quiz Presentation"
+              required
+            />
+          </div>
         </div>
 
         <div className="btn-group">
           <button type="submit" className="btn btn-primary" disabled={isProcessing}>
-            {isProcessing ? <div className="spinner" /> : <Rocket size={16} />}
-            <span>🚀 Generate AI Presentation Slides</span>
+            {isProcessing ? <div className="spinner" style={{ borderColor: 'rgba(255, 255, 255, 0.3)', borderTopColor: '#fff' }} /> : <Rocket size={16} />}
+            <span>Generate AI Presentation Slides</span>
           </button>
 
           <button
@@ -360,6 +435,16 @@ export default function GeminiTab({ onStartJob, activeJobResult }) {
           </button>
         </div>
       </form>
+
+      {/* Credit Confirm Modal */}
+      {estimateData && (
+        <ConfirmCreditModal
+          estimate={estimateData}
+          onConfirm={handleConfirmGeneration}
+          onCancel={() => setEstimateData(null)}
+          onBuyCredits={openBuyModal}
+        />
+      )}
     </div>
   );
 }

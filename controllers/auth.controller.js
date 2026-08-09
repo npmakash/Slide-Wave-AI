@@ -4,7 +4,9 @@
  */
 
 const GoogleAuthService = require('../services/GoogleAuthService');
+const CreditService = require('../services/CreditService');
 const logger = require('../utils/logger');
+
 
 class AuthController {
   /** GET /auth/google */
@@ -38,14 +40,18 @@ class AuthController {
       req.session.tokens = tokens;
 
       const auth = GoogleAuthService.getClientFromSession(req.session);
-      const userInfo = await GoogleAuthService.getUserInfo(auth);
-      req.session.user = userInfo;
+      const googleUserInfo = await GoogleAuthService.getUserInfo(auth);
+
+      // Sync user profile & credits with MongoDB
+      const dbUser = await CreditService.syncUserWithDB(googleUserInfo);
+      req.session.user = dbUser;
 
       await new Promise((resolve, reject) =>
         req.session.save((err) => (err ? reject(err) : resolve()))
       );
 
-      logger.info(`User logged in: ${userInfo.email}`);
+      logger.info(`User logged in and synced to DB: ${dbUser.email}`);
+
       res.redirect('/?login=success');
     } catch (err) {
       logger.error(`OAuth callback exchange error: ${err.message}`);

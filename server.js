@@ -19,8 +19,11 @@ const generateRoutes = require('./routes/generate.routes');
 const downloadRoutes = require('./routes/download.routes');
 const historyRoutes = require('./routes/history.routes');
 const geminiRoutes = require('./routes/gemini.routes');
+const creditRoutes = require('./routes/credit.routes');
+const connectDB = require('./config/db');
 const logger = require('./utils/logger');
 const { scheduleCleanup } = require('./utils/cleanup');
+
 
 // ─── Ensure required directories exist ───────────────────────────────────────
 ['uploads', 'temp', 'data', 'sessions'].forEach((dir) => {
@@ -28,9 +31,11 @@ const { scheduleCleanup } = require('./utils/cleanup');
   if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true });
 });
 
-// ─── Ensure history.json exists ───────────────────────────────────────────────
+// ─── Ensure history.json & credits.json exist ────────────────────────────────
 const historyFile = path.join(__dirname, 'data', 'history.json');
 if (!fs.existsSync(historyFile)) fs.writeFileSync(historyFile, '[]', 'utf-8');
+const creditsFile = path.join(__dirname, 'data', 'credits.json');
+if (!fs.existsSync(creditsFile)) fs.writeFileSync(creditsFile, '{}', 'utf-8');
 
 // ─── App Setup ────────────────────────────────────────────────────────────────
 const app = express();
@@ -38,18 +43,18 @@ const app = express();
 // Trust reverse proxy (required for HTTPS session cookies on Render, Railway, Heroku)
 app.set('trust proxy', 1);
 
-// Security headers — content-security-policy relaxed for Google APIs
+// Security headers — content-security-policy relaxed for Google APIs & Razorpay
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", 'https://accounts.google.com'],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://accounts.google.com', 'https://checkout.razorpay.com'],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         fontSrc: ["'self'", 'https://fonts.gstatic.com'],
         imgSrc: ["'self'", 'data:', 'https:'],
-        connectSrc: ["'self'", 'https://accounts.google.com', 'https://oauth2.googleapis.com'],
-        frameSrc: ["'none'"],
+        connectSrc: ["'self'", 'https://accounts.google.com', 'https://oauth2.googleapis.com', 'https://api.razorpay.com', 'https://lumberjack.razorpay.com'],
+        frameSrc: ["'self'", 'https://api.razorpay.com', 'https://checkout.razorpay.com'],
       },
     },
   })
@@ -103,6 +108,8 @@ app.use('/api', generateRoutes);
 app.use('/api', downloadRoutes);
 app.use('/api', historyRoutes);
 app.use('/api', geminiRoutes);
+app.use('/api', creditRoutes);
+
 
 // ─── SPA Fallback ─────────────────────────────────────────────────────────────
 app.get('*', (req, res) => {
@@ -125,11 +132,13 @@ app.use((err, req, res, _next) => {
 // ─── Start Server ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
-app.listen(PORT, HOST, () => {
+app.listen(PORT, HOST, async () => {
   logger.info(`🚀 Slide Wave AI running at:`);
   logger.info(`   - Local:   http://localhost:${PORT}`);
   logger.info(`   - Network: http://10.13.104.179:${PORT}`);
+  await connectDB();
   scheduleCleanup();
 });
+
 
 module.exports = app;

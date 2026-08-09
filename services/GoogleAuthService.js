@@ -51,10 +51,12 @@ class GoogleAuthService {
     const oauth2 = google.oauth2({ version: 'v2', auth });
     const { data } = await oauth2.userinfo.get();
     return {
+      id: data.id,
       name: data.name,
       email: data.email,
       picture: data.picture,
     };
+
   }
 
   /**

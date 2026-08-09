@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ExternalLink, FileText, Image as ImageIcon, FileCode, XCircle } from 'lucide-react';
+import { ExternalLink, FileText, Image as ImageIcon, FileCode, XCircle, CheckCircle2, AlertCircle } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../context/ToastContext';
+import { useCredits } from '../context/CreditContext';
+
+// Global set across re-renders to ensure a job ID is notified exactly once
+const globalNotifiedJobs = new Set();
 
 export default function ProgressCard({ jobId, onJobCompleted }) {
   const [jobStatus, setJobStatus] = useState('pending'); // pending | running | done | error | cancelled
@@ -10,12 +14,14 @@ export default function ProgressCard({ jobId, onJobCompleted }) {
   const [errorMsg, setErrorMsg] = useState(null);
 
   const { showToast } = useToast();
+  const { fetchCredits } = useCredits();
   const pollTimerRef = useRef(null);
-  const hasNotifiedRef = useRef(false);
 
   useEffect(() => {
     if (!jobId) return;
-    hasNotifiedRef.current = false;
+
+    // Refresh credits balance when job attaches
+    fetchCredits();
 
     const checkStatus = async () => {
       try {
@@ -25,26 +31,26 @@ export default function ProgressCard({ jobId, onJobCompleted }) {
         setJobStatus(status);
         if (prog) setProgress(prog);
 
-        if (status === 'done') {
+        if (['done', 'error', 'cancelled'].includes(status)) {
           if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-          setResult(resData);
-          if (!hasNotifiedRef.current) {
-            hasNotifiedRef.current = true;
-            showToast('Presentation generated successfully!', 'success');
-          }
-          if (onJobCompleted) onJobCompleted(resData);
-        } else if (status === 'error') {
-          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-          setErrorMsg(error || 'Generation failed');
-          if (!hasNotifiedRef.current) {
-            hasNotifiedRef.current = true;
-            showToast(error || 'Generation failed', 'error');
-          }
-        } else if (status === 'cancelled') {
-          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-          if (!hasNotifiedRef.current) {
-            hasNotifiedRef.current = true;
-            showToast('Job was cancelled', 'warning');
+
+          // Guarantee single notification execution per jobId
+          if (!globalNotifiedJobs.has(jobId)) {
+            globalNotifiedJobs.add(jobId);
+
+            // Instant credit balance refresh
+            fetchCredits();
+
+            if (status === 'done') {
+              setResult(resData);
+              showToast('Slides Generated Successfully!', 'success');
+              if (onJobCompleted) onJobCompleted(resData);
+            } else if (status === 'error') {
+              setErrorMsg(error || 'Generation failed');
+              showToast(error || 'Generation failed', 'error');
+            } else if (status === 'cancelled') {
+              showToast('Job was cancelled', 'warning');
+            }
           }
         }
       } catch (err) {
@@ -52,14 +58,13 @@ export default function ProgressCard({ jobId, onJobCompleted }) {
       }
     };
 
-    // Initial check and set interval
     checkStatus();
     pollTimerRef.current = setInterval(checkStatus, 1500);
 
     return () => {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     };
-  }, [jobId, showToast, onJobCompleted]);
+  }, [jobId]);
 
   const handleCancel = async () => {
     try {
@@ -80,18 +85,32 @@ export default function ProgressCard({ jobId, onJobCompleted }) {
   return (
     <div className="glass-card progress-card">
       <div className="progress-header">
-        <h3>
-          {jobStatus === 'done'
-            ? '✨ Generation Complete!'
-            : jobStatus === 'error'
-            ? '❌ Generation Failed'
-            : jobStatus === 'cancelled'
-            ? '⚠️ Generation Cancelled'
-            : 'Generating Slides...'}
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {jobStatus === 'done' ? (
+            <>
+              <CheckCircle2 size={20} color="var(--success)" />
+              <span>Generation Complete!</span>
+            </>
+          ) : jobStatus === 'error' ? (
+            <>
+              <AlertCircle size={20} color="var(--danger)" />
+              <span>Generation Failed</span>
+            </>
+          ) : jobStatus === 'cancelled' ? (
+            <>
+              <XCircle size={20} color="var(--warning)" />
+              <span>Generation Cancelled</span>
+            </>
+          ) : (
+            <>
+              <div className="spinner" style={{ width: '18px', height: '18px' }} />
+              <span>Generating Slides... ({pct}%)</span>
+            </>
+          )}
         </h3>
 
         {['pending', 'running'].includes(jobStatus) && (
-          <button className="btn btn-danger" onClick={handleCancel} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
+          <button className="btn btn-danger" onClick={handleCancel} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', minHeight: '34px' }}>
             <XCircle size={14} />
             <span>Cancel Job</span>
           </button>
@@ -103,7 +122,7 @@ export default function ProgressCard({ jobId, onJobCompleted }) {
           className="progress-bar-fill"
           style={{
             width: barWidth,
-            backgroundColor: jobStatus === 'error' ? '#ef4444' : jobStatus === 'cancelled' ? '#f59e0b' : undefined,
+            backgroundColor: jobStatus === 'error' ? 'var(--danger)' : jobStatus === 'cancelled' ? 'var(--warning)' : undefined,
           }}
         />
       </div>
