@@ -46,15 +46,6 @@ class SlidesService {
   /**
    * Bulk generate slides from records (array of key-value objects)
    *
-   * Algorithm:
-   * 1. Get template presentation structure
-   * 2. For each data record:
-   *    a. Duplicate original template slide(s)
-   *    b. Apply replaceAllText for all placeholders in duplicated slide(s)
-   *    c. Handle image / QR code replacements
-   * 3. Delete the initial template slide(s)
-   * 4. Save and return updated presentation ID
-   *
    * @param {string} presentationId - File ID of the COPIED presentation
    * @param {object[]} records - Data records
    * @param {object} options - Options (skipEmpty, dateFormat, onProgress, checkCancelled)
@@ -72,16 +63,16 @@ class SlidesService {
 
     const detectedPlaceholders = extractPlaceholdersFromPresentation(presentation);
     const placeholderKeys = detectedPlaceholders.map((p) => p.key);
+    const qrPlaceholders = detectedPlaceholders.filter((p) => p.type === 'qrcode');
 
     const originalPageIds = originalSlides.map((s) => s.objectId);
     const totalRecords = records.length;
     let generatedSlideCount = 0;
 
-    // Process in batches to optimize Slides API batchUpdate size (max 500 requests per call)
-    const BATCH_SIZE = 10; // 10 rows per batch call
+    // Process in batches (25 rows per batch call for high throughput & fewer HTTP roundtrips)
+    const BATCH_SIZE = 25;
 
-    // Process rows in reverse so that duplicateObject (which inserts immediately after the template)
-    // results in perfect ascending order [Row 0, Row 1, Row 2, ...] in the final presentation.
+    // Process rows in reverse so duplicated objects maintain ascending order
     for (let i = totalRecords - 1; i >= 0; i -= BATCH_SIZE) {
       checkCancelled();
 
@@ -117,10 +108,9 @@ class SlidesService {
           });
         }
 
-        // 2. Build replacements for this record
+        // 2. Build text replacements for this record
         const replacementMap = buildReplacementMap(record, placeholderKeys, { dateFormat });
 
-        // Apply text replacements filtered by the duplicated page IDs
         for (const [rawText, replaceValue] of replacementMap.entries()) {
           for (const [_, newSlideId] of newSlideIdsMap.entries()) {
             batchRequests.push({
@@ -133,47 +123,49 @@ class SlidesService {
           }
         }
 
-        // 3. Process QR code placeholders & image replacements
-        for (const p of detectedPlaceholders) {
-          if (p.type === 'qrcode') {
-            const rawKey = p.key; // e.g. "qr:url" or "qr:https://example.com"
-            let qrText = rawKey.substring(3).trim();
-
-            // If qrText matches a record key, use record value, otherwise treat as literal
+        // 3. Parallelized processing for QR code placeholders & image replacements
+        if (qrPlaceholders.length > 0) {
+          const qrTasks = qrPlaceholders.map(async (p) => {
+            let qrText = p.key.substring(3).trim();
             if (record[qrText]) {
               qrText = record[qrText];
             }
+            if (!qrText) return null;
 
-            if (qrText) {
-              try {
-                const qrDataUrl = await QRCode.toDataURL(qrText, { width: 300, margin: 1 });
-                const base64Data = qrDataUrl.replace(/^data:image\/png;base64,/, '');
-                const buffer = Buffer.from(base64Data, 'base64');
+            try {
+              const qrDataUrl = await QRCode.toDataURL(qrText, { width: 300, margin: 1 });
+              const base64Data = qrDataUrl.replace(/^data:image\/png;base64,/, '');
+              const buffer = Buffer.from(base64Data, 'base64');
 
-                // Upload temp image to Drive to get public URL for Slides replaceAllShapesWithImage API
-                const tempFileId = await this.driveService.uploadFile(
-                  `qr_${Date.now()}.png`,
-                  'image/png',
-                  buffer
-                );
-                await this.driveService.makePublic(tempFileId);
-                tempDriveFilesToDelete.push(tempFileId);
+              const tempFileId = await this.driveService.uploadFile(
+                `qr_${Date.now()}.png`,
+                'image/png',
+                buffer
+              );
+              await this.driveService.makePublic(tempFileId);
+              return { tempFileId, placeholderRaw: p.raw, newSlideIds: Array.from(newSlideIdsMap.values()) };
+            } catch (err) {
+              logger.warn(`QR code generation failed for ${qrText}: ${err.message}`);
+              return null;
+            }
+          });
 
-                const publicUrl = `https://drive.google.com/uc?export=download&id=${tempFileId}`;
+          const qrResults = await Promise.all(qrTasks);
 
-                for (const [_, newSlideId] of newSlideIdsMap.entries()) {
-                  batchRequests.push({
-                    replaceAllShapesWithImage: {
-                      containsText: { text: p.raw, matchCase: true },
-                      imageUrl: publicUrl,
-                      imageReplaceMethod: 'CENTER_INSIDE',
-                      pageObjectIds: [newSlideId],
-                    },
-                  });
-                }
-              } catch (err) {
-                logger.warn(`QR code generation failed for ${qrText}: ${err.message}`);
-              }
+          for (const res of qrResults) {
+            if (!res) continue;
+            tempDriveFilesToDelete.push(res.tempFileId);
+            const publicUrl = `https://drive.google.com/uc?export=download&id=${res.tempFileId}`;
+
+            for (const slideId of res.newSlideIds) {
+              batchRequests.push({
+                replaceAllShapesWithImage: {
+                  containsText: { text: res.placeholderRaw, matchCase: true },
+                  imageUrl: publicUrl,
+                  imageReplaceMethod: 'CENTER_INSIDE',
+                  pageObjectIds: [slideId],
+                },
+              });
             }
           }
         }
@@ -191,10 +183,8 @@ class SlidesService {
         );
       }
 
-      // Cleanup temporary Drive files used for images/QRs
-      for (const tempId of tempDriveFilesToDelete) {
-        this.driveService.deleteFile(tempId).catch(() => {});
-      }
+      // Cleanup temporary Drive files used for images/QRs in background
+      Promise.all(tempDriveFilesToDelete.map((tempId) => this.driveService.deleteFile(tempId).catch(() => {})));
     }
 
     // 4. Delete original template slide(s) leaving only generated slides
@@ -221,17 +211,15 @@ class SlidesService {
   }
 
   /**
-   * Get individual slide thumbnail/image URLs
+   * Get individual slide thumbnail/image URLs in parallel
    * @param {string} presentationId
    * @returns {Promise<{ slideId: string, pageNumber: number, contentUrl: string }[]>}
    */
   async getSlideImages(presentationId) {
     const presentation = await this.getPresentation(presentationId);
     const slides = presentation.slides || [];
-    const images = [];
 
-    for (let i = 0; i < slides.length; i++) {
-      const slide = slides[i];
+    const tasks = slides.map(async (slide, i) => {
       const res = await retryWithBackoff(() =>
         this.slides.presentations.pages.getThumbnail({
           presentationId,
@@ -240,14 +228,14 @@ class SlidesService {
           'thumbnailProperties.mimeType': 'PNG',
         })
       );
-      images.push({
+      return {
         slideId: slide.objectId,
         pageNumber: i + 1,
         contentUrl: res.data.contentUrl,
-      });
-    }
+      };
+    });
 
-    return images;
+    return Promise.all(tasks);
   }
 }
 

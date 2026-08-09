@@ -1,11 +1,13 @@
 import React from 'react';
-import { Menu, Sparkles, PlusCircle, LogOut, User, Table, Code, Clock } from 'lucide-react';
+import { Menu, Sparkles, PlusCircle, LogOut, User, Table, Code, Clock, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCredits } from '../context/CreditContext';
+import { useTheme } from '../context/ThemeContext';
 
 export default function Navbar({ activeTab, onToggleMobileSidebar, onOpenBuyCredits, onOpenAccount }) {
   const { user, authenticated, logout } = useAuth();
   const { balance } = useCredits();
+  const { isDark, toggleTheme } = useTheme();
 
   const getSectionInfo = () => {
     switch (activeTab) {
@@ -44,6 +46,17 @@ export default function Navbar({ activeTab, onToggleMobileSidebar, onOpenBuyCred
       </div>
 
       <div className="user-nav">
+        {/* Dark / Light Mode Switch Button */}
+        <button
+          type="button"
+          className="theme-toggle-btn"
+          onClick={toggleTheme}
+          title={`Switch to ${isDark ? 'Light' : 'Dark'} Mode`}
+          aria-label="Toggle Theme"
+        >
+          {isDark ? <Sun size={19} color="#f59e0b" /> : <Moon size={19} color="#4f46e5" />}
+        </button>
+
         {authenticated && user && (
           <>
             {/* Header Navbar Credits Pill & Top-up CTA */}

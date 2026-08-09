@@ -93,10 +93,15 @@ app.use(
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
 app.use('/api/', rateLimiter);
 
-// ─── Static Files ─────────────────────────────────────────────────────────────
+// ─── Static Files & Fast Caching Headers ──────────────────────────────────────
 const clientDistPath = path.join(__dirname, 'client', 'dist');
 if (fs.existsSync(clientDistPath)) {
-  app.use(express.static(clientDistPath));
+  app.use(
+    express.static(clientDistPath, {
+      maxAge: '7d', // Fast 7 days browser caching for production bundle assets
+      etag: true,
+    })
+  );
 } else {
   app.use(express.static(path.join(__dirname, 'public')));
 }

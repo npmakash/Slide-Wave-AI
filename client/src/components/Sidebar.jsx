@@ -1,9 +1,11 @@
 import React from 'react';
-import { Presentation, Table, Code, Sparkles, Clock, User, X, Layers, LogOut } from 'lucide-react';
+import { Presentation, Table, Code, Sparkles, Clock, User, X, LogOut, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 export default function Sidebar({ activeTab, setActiveTab, isOpen, onClose, onOpenAccount }) {
   const { user, authenticated, logout } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
 
   const navItems = [
     {
@@ -93,6 +95,21 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onClose, onOp
               </button>
             );
           })}
+
+          <div className="sidebar-nav-title" style={{ marginTop: '1.5rem' }}>PREFERENCES</div>
+          <button
+            type="button"
+            className="sidebar-nav-item"
+            onClick={toggleTheme}
+          >
+            <div className="nav-item-icon">
+              {isDark ? <Sun size={19} color="#f59e0b" /> : <Moon size={19} color="#4f46e5" />}
+            </div>
+            <div className="nav-item-content">
+              <span className="nav-item-label">{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+              <span className="nav-item-sublabel">Switch app color theme</span>
+            </div>
+          </button>
         </nav>
 
         {/* Sidebar Footer User Account info */}
