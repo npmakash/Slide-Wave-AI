@@ -1,6 +1,6 @@
 /**
  * controllers/history.controller.js
- * Generation history management (list, delete single, bulk delete)
+ * User-isolated generation history management (list, delete single, bulk delete)
  */
 
 const path = require('path');
@@ -25,19 +25,28 @@ function writeHistory(data) {
 }
 
 class HistoryController {
-  /** GET /api/history */
+  /** GET /api/history — isolated by logged-in user email */
   static async getHistory(req, res) {
-    const history = readHistory();
-    const { search = '', sourceType = '' } = req.query;
+    const allHistory = readHistory();
+    const currentUserEmail = req.session?.user?.email;
 
-    let filtered = history;
+    // Filter by logged in user email if user is authenticated
+    let userHistory = allHistory;
+    if (currentUserEmail) {
+      userHistory = allHistory.filter(
+        (item) => !item.userEmail || item.userEmail === currentUserEmail
+      );
+    }
+
+    const { search = '', sourceType = '' } = req.query;
+    let filtered = userHistory;
 
     if (search) {
       const q = search.toLowerCase();
       filtered = filtered.filter(
         (item) =>
           item.outputName.toLowerCase().includes(q) ||
-          item.presentationId.toLowerCase().includes(q)
+          (item.presentationId && item.presentationId.toLowerCase().includes(q))
       );
     }
 
@@ -52,12 +61,18 @@ class HistoryController {
   static async deleteHistoryItem(req, res) {
     const { id } = req.params;
     const { deleteDriveFile = false } = req.query;
+    const currentUserEmail = req.session?.user?.email;
 
     let history = readHistory();
     const item = history.find((h) => h.id === id);
 
     if (!item) {
       return res.status(404).json({ error: 'History record not found' });
+    }
+
+    // Verify ownership
+    if (currentUserEmail && item.userEmail && item.userEmail !== currentUserEmail) {
+      return res.status(403).json({ error: 'Unauthorized to delete this history record' });
     }
 
     if (deleteDriveFile && item.presentationId) {
@@ -79,13 +94,16 @@ class HistoryController {
   /** POST /api/history/bulk-delete */
   static async bulkDeleteHistory(req, res) {
     const { ids = [], deleteDriveFiles = false } = req.body;
+    const currentUserEmail = req.session?.user?.email;
 
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'ids array is required' });
     }
 
     let history = readHistory();
-    const itemsToDelete = history.filter((h) => ids.includes(h.id));
+    const itemsToDelete = history.filter(
+      (h) => ids.includes(h.id) && (!currentUserEmail || !h.userEmail || h.userEmail === currentUserEmail)
+    );
 
     if (deleteDriveFiles) {
       try {
@@ -102,7 +120,8 @@ class HistoryController {
       }
     }
 
-    history = history.filter((h) => !ids.includes(h.id));
+    const idsToDeleteSet = new Set(itemsToDelete.map((i) => i.id));
+    history = history.filter((h) => !idsToDeleteSet.has(h.id));
     writeHistory(history);
 
     res.json({ success: true, count: itemsToDelete.length, message: `${itemsToDelete.length} records deleted` });

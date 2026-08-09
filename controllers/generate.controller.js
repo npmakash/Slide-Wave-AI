@@ -21,7 +21,7 @@ const logger = require('../utils/logger');
 const jobs = new Map();
 const HISTORY_FILE = path.join(__dirname, '..', 'data', 'history.json');
 
-/** Save history item to data/history.json */
+/** Save history item to data/history.json with user isolation */
 function saveHistoryItem(item) {
   try {
     let history = [];
@@ -29,7 +29,7 @@ function saveHistoryItem(item) {
       history = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf-8'));
     }
     history.unshift(item); // Prepend newest
-    if (history.length > 200) history = history.slice(0, 200); // Max 200 records
+    if (history.length > 500) history = history.slice(0, 500); // Max 500 records
     fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2), 'utf-8');
   } catch (err) {
     logger.error(`Failed to save history item: ${err.message}`);
@@ -88,13 +88,15 @@ class GenerateController {
         error: null,
       };
 
-      const userId = req.session?.user?.email || req.sessionID || 'default_user';
+      const userEmail = req.session?.user?.email || 'anonymous';
+      const userId = userEmail;
 
       jobs.set(jobId, job);
 
       // Start async background execution
       GenerateController.runSheetJob(job, auth, {
         userId,
+        userEmail,
         templateId,
         sheetId,
         outputName,
@@ -112,7 +114,7 @@ class GenerateController {
 
   /** Background execution for Sheet job */
   static async runSheetJob(job, auth, params) {
-    const { userId, templateId, sheetId, outputName, skipEmptyRows, sheetName, dateFormat } = params;
+    const { userId, userEmail, templateId, sheetId, outputName, skipEmptyRows, sheetName, dateFormat } = params;
 
     const log = (msg) => {
       const entry = `[${new Date().toLocaleTimeString()}] ${msg}`;
@@ -194,6 +196,7 @@ class GenerateController {
 
       saveHistoryItem({
         id: job.jobId,
+        userEmail: userEmail || 'anonymous',
         outputName,
         sourceType: 'sheet',
         presentationId,
@@ -225,7 +228,8 @@ class GenerateController {
         return res.status(400).json({ error: 'Data array cannot be empty.' });
       }
 
-      const userId = req.session?.user?.email || req.sessionID || 'default_user';
+      const userEmail = req.session?.user?.email || 'anonymous';
+      const userId = userEmail;
       const requiredCredits = data.length;
 
       // Deduct credits upfront for JSON generation
@@ -251,6 +255,7 @@ class GenerateController {
       jobs.set(jobId, job);
 
       GenerateController.runJsonJob(job, auth, {
+        userEmail,
         templateId,
         outputName,
         data,
@@ -267,7 +272,7 @@ class GenerateController {
 
   /** Background execution for JSON job */
   static async runJsonJob(job, auth, params) {
-    const { templateId, outputName, data, dateFormat } = params;
+    const { userEmail, templateId, outputName, data, dateFormat } = params;
 
     const log = (msg) => {
       job.logs.push(`[${new Date().toLocaleTimeString()}] ${msg}`);
@@ -326,6 +331,7 @@ class GenerateController {
 
       saveHistoryItem({
         id: job.jobId,
+        userEmail: userEmail || 'anonymous',
         outputName,
         sourceType: 'json',
         presentationId,
