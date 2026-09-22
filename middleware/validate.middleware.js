@@ -47,6 +47,8 @@ const generateSheetSchema = Joi.object({
   skipEmptyRows: Joi.boolean().default(true),
   sheetName: Joi.string().optional().allow(''),
   dateFormat: Joi.string().optional().allow(''),
+  isMultiItem: Joi.boolean().optional(),
+  itemsPerPage: Joi.number().integer().min(1).max(50).optional(),
   options: Joi.object().optional(),
 });
 
@@ -64,6 +66,8 @@ const generateJsonSchema = Joi.object({
     }),
   skipEmptyRows: Joi.boolean().default(true),
   dateFormat: Joi.string().optional().allow(''),
+  isMultiItem: Joi.boolean().optional(),
+  itemsPerPage: Joi.number().integer().min(1).max(50).optional(),
   options: Joi.object().optional(),
 });
 

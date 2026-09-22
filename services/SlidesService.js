@@ -54,6 +54,11 @@ class SlidesService {
   async generateBulkSlides(presentationId, records, options = {}) {
     const { onProgress = () => {}, checkCancelled = () => {}, dateFormat = 'DD/MM/YYYY' } = options;
 
+    // Check if multi-item per slide mode (Beta) is enabled
+    if (options.isMultiItem || options.mode === 'multiItem') {
+      return this.generateBatchMultiItemSlides(presentationId, records, options);
+    }
+
     const presentation = await this.getPresentation(presentationId);
     const originalSlides = presentation.slides || [];
 
@@ -208,6 +213,189 @@ class SlidesService {
     );
 
     return { slideCount: generatedSlideCount };
+  }
+
+  /**
+   * Bulk generate multi-item / grid batch slides (Beta Feature)
+   * Populates indexed placeholders (e.g. {{question_1}} .. {{question_12}}) on a single slide page.
+   *
+   * @param {string} presentationId
+   * @param {object[]} records
+   * @param {object} options
+   * @returns {Promise<{ slideCount: number, pageCount: number }>}
+   */
+  async generateBatchMultiItemSlides(presentationId, records, options = {}) {
+    const { onProgress = () => {}, checkCancelled = () => {} } = options;
+
+    const presentation = await this.getPresentation(presentationId);
+    const originalSlides = presentation.slides || [];
+
+    if (originalSlides.length === 0) {
+      throw new Error('Template presentation has no slides.');
+    }
+
+    const detectedPlaceholders = extractPlaceholdersFromPresentation(presentation);
+    const originalPageIds = originalSlides.map((s) => s.objectId);
+
+    // Determine items per page
+    let maxDetectedIndex = 0;
+    for (const p of detectedPlaceholders) {
+      const match = p.key.match(/_(\d+)$/);
+      if (match) {
+        const idx = parseInt(match[1], 10);
+        if (idx > maxDetectedIndex) maxDetectedIndex = idx;
+      }
+    }
+
+    const itemsPerPage = Math.max(
+      1,
+      options.itemsPerPage ? parseInt(options.itemsPerPage, 10) : (maxDetectedIndex > 0 ? maxDetectedIndex : 12)
+    );
+
+    const totalRecords = records.length;
+    const totalPages = Math.ceil(totalRecords / itemsPerPage);
+    let generatedSlideCount = 0;
+
+    // Process pages in reverse order so inserted slides land in ascending sequence
+    for (let page = totalPages - 1; page >= 0; page--) {
+      checkCancelled();
+
+      const startIndex = page * itemsPerPage;
+      const pageQuestions = records.slice(startIndex, startIndex + itemsPerPage);
+
+      onProgress({
+        step: 'generating',
+        current: page + 1,
+        total: totalPages,
+        message: `Generating multi-item slide ${page + 1} of ${totalPages} (items ${startIndex + 1} to ${Math.min(startIndex + itemsPerPage, totalRecords)})...`,
+      });
+
+      const batchRequests = [];
+      const newSlideIdsMap = new Map();
+
+      // Duplicate template slide for this page
+      for (const origId of originalPageIds) {
+        const newId = `gen_multi_slide_${page}_${origId.replace(/[^a-zA-Z0-9_-]/g, '')}_${Date.now()}`;
+        newSlideIdsMap.set(origId, newId);
+
+        batchRequests.push({
+          duplicateObject: {
+            objectId: origId,
+            objectIds: { [origId]: newId },
+          },
+        });
+      }
+
+      // Populate slots 1..itemsPerPage
+      for (let slot = 1; slot <= itemsPerPage; slot++) {
+        const item = pageQuestions[slot - 1]; // 0-indexed item for this slot
+
+        if (item) {
+          // Replace item attributes for {{key_slot}}
+          for (const [key, rawValue] of Object.entries(item)) {
+            const replaceVal = String(rawValue ?? '');
+            const possiblePlaceholders = [
+              `{{${key}_${slot}}}`,
+              `{{${key.toLowerCase()}_${slot}}}`,
+              `{{${key.toUpperCase()}_${slot}}}`,
+            ];
+
+            for (const rawText of new Set(possiblePlaceholders)) {
+              for (const newSlideId of newSlideIdsMap.values()) {
+                batchRequests.push({
+                  replaceAllText: {
+                    containsText: { text: rawText, matchCase: false },
+                    replaceText: replaceVal,
+                    pageObjectIds: [newSlideId],
+                  },
+                });
+              }
+            }
+          }
+
+          // Auto-fill {{number_slot}} if number column is not explicitly in item
+          if (item.number === undefined && item.num === undefined && item.no === undefined) {
+            const autoNum = startIndex + slot;
+            const numPlaceholder = `{{number_${slot}}}`;
+            for (const newSlideId of newSlideIdsMap.values()) {
+              batchRequests.push({
+                replaceAllText: {
+                  containsText: { text: numPlaceholder, matchCase: false },
+                  replaceText: String(autoNum),
+                  pageObjectIds: [newSlideId],
+                },
+              });
+            }
+          }
+        } else {
+          // Empty/unused slot on last slide -> replace placeholders with ""
+          for (const p of detectedPlaceholders) {
+            if (p.raw.includes(`_${slot}}`) || p.raw.includes(`_${slot}}}`)) {
+              for (const newSlideId of newSlideIdsMap.values()) {
+                batchRequests.push({
+                  replaceAllText: {
+                    containsText: { text: p.raw, matchCase: false },
+                    replaceText: '',
+                    pageObjectIds: [newSlideId],
+                  },
+                });
+              }
+            }
+          }
+
+          const commonFields = [
+            'number', 'num', 'question', 'q', 'optiona', 'optionb', 'optionc', 'optiond',
+            'answer', 'explanation', 'title', 'desc', 'text', 'name', 'code', 'score'
+          ];
+          for (const field of commonFields) {
+            const clearPlaceholder = `{{${field}_${slot}}}`;
+            for (const newSlideId of newSlideIdsMap.values()) {
+              batchRequests.push({
+                replaceAllText: {
+                  containsText: { text: clearPlaceholder, matchCase: false },
+                  replaceText: '',
+                  pageObjectIds: [newSlideId],
+                },
+              });
+            }
+          }
+        }
+      }
+
+      if (batchRequests.length > 0) {
+        await retryWithBackoff(() =>
+          this.slides.presentations.batchUpdate({
+            presentationId,
+            requestBody: { requests: batchRequests },
+          })
+        );
+      }
+
+      generatedSlideCount += originalPageIds.length;
+    }
+
+    // Delete original template slide(s)
+    checkCancelled();
+    onProgress({
+      step: 'cleaning',
+      current: totalRecords,
+      total: totalRecords,
+      message: 'Finalizing presentation and removing template slides...',
+    });
+
+    const deleteRequests = originalPageIds.map((origId) => ({
+      deleteObject: { objectId: origId },
+    }));
+
+    await retryWithBackoff(() =>
+      this.slides.presentations.batchUpdate({
+        presentationId,
+        requestBody: { requests: deleteRequests },
+      })
+    );
+
+    return { slideCount: generatedSlideCount, pageCount: totalPages };
+  }
   }
 
   /**

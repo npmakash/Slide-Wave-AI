@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
+import BottomNav from './components/BottomNav';
 import AuthBanner from './components/AuthBanner';
 import SheetTab from './components/SheetTab';
 import JsonTab from './components/JsonTab';
 import GeminiTab from './components/GeminiTab';
+import MultiItemBetaTab from './components/MultiItemBetaTab';
 import TemplateGallery from './components/TemplateGallery';
 import AdminDashboard from './components/AdminDashboard';
 import AdminTemplateManager from './components/AdminTemplateManager';
@@ -125,6 +127,14 @@ export default function App() {
                       />
                     )}
 
+                    {activeTab === 'multi-item-beta' && (
+                      <MultiItemBetaTab
+                        onStartJob={handleStartJob}
+                        activeJobResult={activeJobResult}
+                        selectedTemplateUrl={selectedTemplateUrl}
+                      />
+                    )}
+
                     {activeTab === 'templates' && (
                       <TemplateGallery
                         onSelectTemplate={handleSelectTemplateFromGallery}
@@ -148,6 +158,15 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* Mobile Bottom Icon Navigation Bar */}
+      {authenticated && (
+        <BottomNav
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onOpenAccount={() => setShowAccountModal(true)}
+        />
+      )}
 
       {/* Modals */}
       {previewData && (

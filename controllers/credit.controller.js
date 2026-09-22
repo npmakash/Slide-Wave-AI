@@ -54,7 +54,7 @@ class CreditController {
   static async estimateCredits(req, res) {
     try {
       const userId = getUserIdFromReq(req);
-      const { sourceType, sheetUrl, sheetName, skipEmptyRows = true, data } = req.body;
+      const { sourceType, sheetUrl, sheetName, skipEmptyRows = true, data, isMultiItem, itemsPerPage } = req.body;
       const currentBalance = await CreditService.getBalance(userId);
 
       let rowCount = 0;
@@ -77,7 +77,8 @@ class CreditController {
         return res.status(400).json({ error: 'Invalid sourceType. Expected sheet, json, or gemini.' });
       }
 
-      const requiredCredits = rowCount; // 1 credit = 1 slide row
+      const perPage = isMultiItem ? Math.max(1, parseInt(itemsPerPage || 12, 10)) : 1;
+      const requiredCredits = isMultiItem ? Math.ceil(rowCount / perPage) : rowCount; // 1 credit per generated slide page
       const hasEnough = currentBalance >= requiredCredits;
 
       res.json({

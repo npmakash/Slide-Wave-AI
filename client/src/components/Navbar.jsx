@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Sparkles, PlusCircle, User, Table, Code, Clock, Sun, Moon, ShieldCheck, Users, LayoutTemplate, Layers } from 'lucide-react';
+import { Menu, Sparkles, PlusCircle, User, Table, Code, Grid, Clock, Sun, Moon, ShieldCheck, Users, LayoutTemplate, Layers } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCredits } from '../context/CreditContext';
 import { useTheme } from '../context/ThemeContext';
@@ -23,6 +23,8 @@ export default function Navbar({ activeTab, onToggleMobileSidebar, onOpenBuyCred
         return { title: 'JSON Array Generator', icon: Code };
       case 'gemini':
         return { title: 'Gemini AI Generator', icon: Sparkles };
+      case 'multi-item-beta':
+        return { title: 'Multi-Item Batch Generator (Beta)', icon: Grid };
       case 'templates':
         return { title: 'Slide Templates Gallery', icon: LayoutTemplate };
       case 'history':

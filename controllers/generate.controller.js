@@ -69,7 +69,7 @@ class GenerateController {
   /** POST /api/generate-sheet */
   static async generateFromSheet(req, res) {
     try {
-      const { templateUrl, sheetUrl, outputName, skipEmptyRows, sheetName, dateFormat } = req.body;
+      const { templateUrl, sheetUrl, outputName, skipEmptyRows, sheetName, dateFormat, isMultiItem, itemsPerPage } = req.body;
 
       const templateId = extractGoogleFileId(templateUrl);
       const sheetId = extractGoogleFileId(sheetUrl);
@@ -82,7 +82,7 @@ class GenerateController {
         outputName,
         status: 'pending', // pending | running | done | error | cancelled
         progress: { step: 'initializing', current: 0, total: 0, message: 'Initializing job...' },
-        logs: [`[${new Date().toISOString()}] Job created for Sheet generation`],
+        logs: [`[${new Date().toISOString()}] Job created for Sheet generation${isMultiItem ? ' (Multi-Item Batch Mode)' : ''}`],
         isCancelled: false,
         result: null,
         error: null,
@@ -103,6 +103,8 @@ class GenerateController {
         skipEmptyRows,
         sheetName,
         dateFormat,
+        isMultiItem,
+        itemsPerPage,
       }).catch((err) => logger.error(`Job ${jobId} failed: ${err.message}`));
 
       res.json({ success: true, jobId, message: 'Generation started in background' });
@@ -114,7 +116,7 @@ class GenerateController {
 
   /** Background execution for Sheet job */
   static async runSheetJob(job, auth, params) {
-    const { userId, userEmail, templateId, sheetId, outputName, skipEmptyRows, sheetName, dateFormat } = params;
+    const { userId, userEmail, templateId, sheetId, outputName, skipEmptyRows, sheetName, dateFormat, isMultiItem, itemsPerPage } = params;
 
     const log = (msg) => {
       const entry = `[${new Date().toLocaleTimeString()}] ${msg}`;
@@ -148,15 +150,17 @@ class GenerateController {
         throw new Error('Google Sheet contained no data rows to generate slides from.');
       }
 
-      // Deduct credits for Sheet rows
-      await CreditService.deductCredits(userId, records.length, `Sheet Slide Generation (${records.length} slides)`);
-      log(`Deducted ${records.length} credits for slide generation`);
+      // Calculate credit cost (1 credit per slide created)
+      const perPage = isMultiItem ? Math.max(1, parseInt(itemsPerPage || 12, 10)) : 1;
+      const creditCost = isMultiItem ? Math.ceil(records.length / perPage) : records.length;
 
+      // Deduct credits for Sheet rows/slides
+      await CreditService.deductCredits(userId, creditCost, `Sheet Slide Generation (${creditCost} credits)`);
+      log(`Deducted ${creditCost} credits for slide generation (${records.length} items)`);
 
       checkCancelled();
       log(`Read ${records.length} data rows and ${headers.length} columns`);
       updateProgress('copying_template', 0, records.length, 'Copying template presentation...');
-
 
       // Copy template to new presentation file
       const presentationId = await driveService.copyFile(templateId, outputName);
@@ -167,6 +171,8 @@ class GenerateController {
       // Generate slides bulk
       const { slideCount } = await slidesService.generateBulkSlides(presentationId, records, {
         dateFormat,
+        isMultiItem,
+        itemsPerPage: perPage,
         checkCancelled,
         onProgress: ({ step, current, total, message }) => {
           updateProgress(step, current, total, message);
@@ -177,7 +183,6 @@ class GenerateController {
       updateProgress('creating_pdf', slideCount, slideCount, 'Creating PDF download package...');
 
       const pdfPath = await exportService.exportToPdf(presentationId, outputName);
-
       const metadata = await driveService.getFileMetadata(presentationId);
 
       job.status = 'done';
@@ -222,7 +227,7 @@ class GenerateController {
   /** POST /api/generate-json */
   static async generateFromJson(req, res) {
     try {
-      const { templateUrl, outputName, data, dateFormat } = req.body;
+      const { templateUrl, outputName, data, dateFormat, isMultiItem, itemsPerPage } = req.body;
 
       if (!Array.isArray(data) || data.length === 0) {
         return res.status(400).json({ error: 'Data array cannot be empty.' });
@@ -230,11 +235,11 @@ class GenerateController {
 
       const userEmail = req.session?.user?.email || 'anonymous';
       const userId = userEmail;
-      const requiredCredits = data.length;
+      const perPage = isMultiItem ? Math.max(1, parseInt(itemsPerPage || 12, 10)) : 1;
+      const requiredCredits = isMultiItem ? Math.ceil(data.length / perPage) : data.length;
 
       // Deduct credits upfront for JSON generation
-      await CreditService.deductCredits(userId, requiredCredits, `JSON Slide Generation (${requiredCredits} slides)`);
-
+      await CreditService.deductCredits(userId, requiredCredits, `JSON Slide Generation (${requiredCredits} credits)`);
 
       const templateId = extractGoogleFileId(templateUrl);
       const auth = GoogleAuthService.getClientFromSession(req.session);
@@ -246,7 +251,7 @@ class GenerateController {
         outputName,
         status: 'pending',
         progress: { step: 'initializing', current: 0, total: data.length, message: 'Initializing JSON job...' },
-        logs: [`[${new Date().toISOString()}] Job created for JSON generation (${data.length} records)`],
+        logs: [`[${new Date().toISOString()}] Job created for JSON generation (${data.length} records)${isMultiItem ? ' [Multi-Item Batch Mode]' : ''}`],
         isCancelled: false,
         result: null,
         error: null,
@@ -260,6 +265,8 @@ class GenerateController {
         outputName,
         data,
         dateFormat,
+        isMultiItem,
+        itemsPerPage: perPage,
       }).catch((err) => logger.error(`JSON Job ${jobId} failed: ${err.message}`));
 
       res.json({ success: true, jobId, message: 'JSON generation started' });
@@ -269,10 +276,9 @@ class GenerateController {
     }
   }
 
-
   /** Background execution for JSON job */
   static async runJsonJob(job, auth, params) {
-    const { userEmail, templateId, outputName, data, dateFormat } = params;
+    const { userEmail, templateId, outputName, data, dateFormat, isMultiItem, itemsPerPage } = params;
 
     const log = (msg) => {
       job.logs.push(`[${new Date().toLocaleTimeString()}] ${msg}`);
@@ -303,6 +309,8 @@ class GenerateController {
 
       const { slideCount } = await slidesService.generateBulkSlides(presentationId, data, {
         dateFormat,
+        isMultiItem,
+        itemsPerPage,
         checkCancelled,
         onProgress: ({ step, current, total, message }) => {
           updateProgress(step, current, total, message);

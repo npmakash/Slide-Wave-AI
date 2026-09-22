@@ -1,5 +1,5 @@
 import React from 'react';
-import { Presentation, Table, Code, Sparkles, Clock, User, X, LogOut, Sun, Moon, ShieldCheck, Users, LayoutTemplate, Layers } from 'lucide-react';
+import { Presentation, Table, Code, Sparkles, Grid, Clock, User, X, LogOut, Sun, Moon, ShieldCheck, Users, LayoutTemplate, Layers } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
@@ -28,6 +28,13 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onClose, onOp
       sublabel: 'Generate slides with AI',
       icon: Sparkles,
       badge: 'AI Powered',
+    },
+    {
+      id: 'multi-item-beta',
+      label: 'Multi-Item Batch',
+      sublabel: 'Grid / Multi-Placeholder (12 per slide)',
+      icon: Grid,
+      badge: 'BETA',
     },
     {
       id: 'templates',
