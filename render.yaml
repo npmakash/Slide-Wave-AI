@@ -2,6 +2,7 @@ services:
   - type: web
     name: google-slides-bulk-generator
     env: node
+    branch: deployment
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
