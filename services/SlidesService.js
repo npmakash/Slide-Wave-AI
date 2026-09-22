@@ -396,7 +396,6 @@ class SlidesService {
 
     return { slideCount: generatedSlideCount, pageCount: totalPages };
   }
-  }
 
   /**
    * Get individual slide thumbnail/image URLs in parallel
