@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Grid, Layers, Sparkles, Link, FileCode, Upload, Rocket, FileText, Image as ImageIcon, Type, Info, HelpCircle } from 'lucide-react';
+import { Grid, Layers, Sparkles, Link, FileCode, Upload, Rocket, FileText, Image as ImageIcon, Type, Info, HelpCircle, Copy, Check } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useCredits } from '../context/CreditContext';
 import ConfirmCreditModal from './ConfirmCreditModal';
 
-const DEFAULT_TEMPLATE_URL = 'https://docs.google.com/presentation/d/1ecwiq4ZlzlQv8kapXBWEXViSXxhDIPnsgmT7F4-EpPo/edit#slide=id.g3f804837050_2_45';
+const DEFAULT_TEMPLATE_URL = 'https://docs.google.com/presentation/d/1EL90TLpXULg_aAmtvzC3GqSPqI6gmVtBru3DxdJj8To/edit?usp=sharing';
 const DEFAULT_JSON = `[
   { "number": "1", "question": "What is the capital of France?", "optionA": "Paris", "optionB": "London", "optionC": "Berlin", "optionD": "Madrid", "answer": "A", "explanation": "Paris is the capital and largest city of France." },
   { "number": "2", "question": "Which planet is known as the Red Planet?", "optionA": "Venus", "optionB": "Mars", "optionC": "Jupiter", "optionD": "Saturn", "answer": "B", "explanation": "Mars appears red due to iron oxide on its surface." },
@@ -18,6 +18,7 @@ export default function MultiItemBetaTab({ onStartJob, activeJobResult, selected
   const [sheetUrl, setSheetUrl] = useState('');
   const [sheetName, setSheetName] = useState('');
   const [jsonString, setJsonString] = useState(DEFAULT_JSON);
+  const [copied, setCopied] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(12);
   const [outputName, setOutputName] = useState('');
   const [dragOver, setDragOver] = useState(false);
@@ -140,6 +141,14 @@ export default function MultiItemBetaTab({ onStartJob, activeJobResult, selected
     }
   };
 
+  const handleCopyJson = () => {
+    if (!jsonString) return;
+    navigator.clipboard.writeText(jsonString);
+    setCopied(true);
+    showToast('Copied JSON structure to clipboard!', 'success');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const presentationId = activeJobResult?.presentationId;
 
   return (
@@ -243,10 +252,21 @@ export default function MultiItemBetaTab({ onStartJob, activeJobResult, selected
           </>
         ) : (
           <div className="form-group">
-            <label>
-              <FileCode size={16} />
-              <span>JSON Data Array *</span>
-            </label>
+            <div className="form-label-row">
+              <label style={{ margin: 0 }}>
+                <FileCode size={16} />
+                <span>JSON Data Array *</span>
+              </label>
+              <button
+                type="button"
+                className="copy-json-btn"
+                onClick={handleCopyJson}
+                title="Copy JSON structure to clipboard"
+              >
+                {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
+                <span>{copied ? 'Copied!' : 'Copy JSON'}</span>
+              </button>
+            </div>
             <div
               className={`drag-drop-area ${dragOver ? 'drag-over' : ''}`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}

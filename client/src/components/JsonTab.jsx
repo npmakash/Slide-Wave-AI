@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, Rocket, FileText, Image as ImageIcon, Code, Link, Type, FileCode } from 'lucide-react';
+import { Upload, Rocket, FileText, Image as ImageIcon, Code, Link, Type, FileCode, Copy, Check } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useCredits } from '../context/CreditContext';
@@ -14,6 +14,7 @@ const DEFAULT_JSON = `[
 export default function JsonTab({ onStartJob, activeJobResult, selectedTemplateUrl }) {
   const [templateUrl, setTemplateUrl] = useState(selectedTemplateUrl || DEFAULT_TEMPLATE_URL);
   const [jsonString, setJsonString] = useState(DEFAULT_JSON);
+  const [copied, setCopied] = useState(false);
   const [outputName, setOutputName] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -114,6 +115,14 @@ export default function JsonTab({ onStartJob, activeJobResult, selectedTemplateU
     }
   };
 
+  const handleCopyJson = () => {
+    if (!jsonString) return;
+    navigator.clipboard.writeText(jsonString);
+    setCopied(true);
+    showToast('Copied JSON structure to clipboard!', 'success');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const presentationId = activeJobResult?.presentationId;
 
   return (
@@ -144,10 +153,21 @@ export default function JsonTab({ onStartJob, activeJobResult, selectedTemplateU
         </div>
 
         <div className="form-group">
-          <label>
-            <FileCode size={16} />
-            <span>JSON Data Array *</span>
-          </label>
+          <div className="form-label-row">
+            <label style={{ margin: 0 }}>
+              <FileCode size={16} />
+              <span>JSON Data Array *</span>
+            </label>
+            <button
+              type="button"
+              className="copy-json-btn"
+              onClick={handleCopyJson}
+              title="Copy JSON structure to clipboard"
+            >
+              {copied ? <Check size={14} color="var(--success)" /> : <Copy size={14} />}
+              <span>{copied ? 'Copied!' : 'Copy JSON'}</span>
+            </button>
+          </div>
           <div
             className={`drag-drop-area ${dragOver ? 'drag-over' : ''}`}
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}

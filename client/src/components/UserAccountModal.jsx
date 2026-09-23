@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Sparkles, CreditCard, ArrowDownRight, ArrowUpRight, Gift, History } from 'lucide-react';
+import { X, User, Sparkles, CreditCard, ArrowDownRight, ArrowUpRight, Gift, History, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCredits } from '../context/CreditContext';
 import api from '../services/api';
 
 export default function UserAccountModal({ onClose, onOpenBuyCredits }) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { balance } = useCredits();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +27,11 @@ export default function UserAccountModal({ onClose, onOpenBuyCredits }) {
     loadTransactions();
   }, []);
 
+  const handleSignOut = () => {
+    onClose();
+    logout();
+  };
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
@@ -34,33 +39,45 @@ export default function UserAccountModal({ onClose, onOpenBuyCredits }) {
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: '650px', width: '92%' }}
       >
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div className="modal-header" style={{ gap: '0.5rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
             {user?.picture ? (
               <img
                 src={user.picture}
                 alt="Avatar"
-                style={{ width: '42px', height: '42px', borderRadius: '50%', border: '2px solid var(--primary)' }}
+                style={{ width: '42px', height: '42px', borderRadius: '50%', border: '2px solid var(--primary)', flexShrink: 0 }}
               />
             ) : (
-              <div style={{ background: 'var(--primary-light)', padding: '0.6rem', borderRadius: '50%', color: 'var(--primary)' }}>
+              <div style={{ background: 'var(--primary-light)', padding: '0.6rem', borderRadius: '50%', color: 'var(--primary)', flexShrink: 0 }}>
                 <User size={24} />
               </div>
             )}
 
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-main)', fontWeight: 600 }}>
+            <div style={{ minWidth: 0, overflow: 'hidden' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-main)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {user?.name || 'User Account'}
               </h3>
-              <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {user?.email || 'Logged in via Google OAuth'}
               </p>
             </div>
           </div>
 
-          <button className="icon-btn" onClick={onClose}>
-            <X size={20} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={handleSignOut}
+              style={{ padding: '0.4rem 0.75rem', fontSize: '0.82rem', height: 'auto', minHeight: '34px' }}
+              title="Sign Out of your Account"
+            >
+              <LogOut size={15} />
+              <span>Sign Out</span>
+            </button>
+            <button className="icon-btn" onClick={onClose} aria-label="Close modal">
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         <div className="modal-body" style={{ paddingTop: '1.25rem' }}>
@@ -200,6 +217,19 @@ export default function UserAccountModal({ onClose, onOpenBuyCredits }) {
               </table>
             </div>
           )}
+
+          {/* Modal Footer Signout Action */}
+          <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--bg-card-border)', display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={handleSignOut}
+              style={{ width: '100%', justifyContent: 'center' }}
+            >
+              <LogOut size={16} />
+              <span>Sign Out of Account</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
