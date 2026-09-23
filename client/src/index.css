@@ -1236,20 +1236,7 @@ textarea.form-control {
   }
 
   .credits-pill-header {
-    padding: 0.25rem 0.35rem 0.25rem 0.6rem;
-    gap: 0.4rem;
-  }
-
-  .credits-pill-text {
-    font-size: 0.78rem;
-  }
-
-  .credits-pill-btn span {
-    display: none;
-  }
-
-  .credits-pill-btn {
-    padding: 0.3rem 0.45rem;
+    display: none !important;
   }
 
   .container {

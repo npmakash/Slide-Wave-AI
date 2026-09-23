@@ -12,13 +12,11 @@ export default function BottomNav({ activeTab, setActiveTab, onOpenAccount }) {
     { id: 'gemini', label: 'Gemini', icon: Sparkles },
     { id: 'multi-item-beta', label: 'Multi (Beta)', icon: Grid, isBeta: true },
     { id: 'templates', label: 'Templates', icon: LayoutTemplate },
-    { id: 'history', label: 'History', icon: Clock },
   ];
 
   const adminItems = [
     { id: 'admin-users', label: 'Users', icon: ShieldCheck },
     { id: 'admin-templates', label: 'Templates', icon: LayoutTemplate },
-    { id: 'history', label: 'History', icon: Clock },
   ];
 
   const items = isAdmin ? adminItems : regularItems;

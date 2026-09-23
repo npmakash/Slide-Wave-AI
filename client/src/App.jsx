@@ -27,8 +27,12 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(isAdmin ? 'admin-users' : 'sheet');
   const [selectedTemplateUrl, setSelectedTemplateUrl] = useState('');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [activeJobId, setActiveJobId] = useState(null);
-  const [activeJobResult, setActiveJobResult] = useState(null);
+  const [tabJobs, setTabJobs] = useState({
+    sheet: { jobId: null, result: null },
+    json: { jobId: null, result: null },
+    gemini: { jobId: null, result: null },
+    'multi-item-beta': { jobId: null, result: null },
+  });
 
   // Modals state
   const [showAccountModal, setShowAccountModal] = useState(false);
@@ -40,13 +44,18 @@ export default function App() {
     }
   }, [isAdmin]);
 
-  const handleStartJob = (jobId) => {
-    setActiveJobId(jobId);
-    setActiveJobResult(null);
+  const handleStartJob = (jobId, targetTab = activeTab) => {
+    setTabJobs((prev) => ({
+      ...prev,
+      [targetTab]: { jobId, result: null },
+    }));
   };
 
-  const handleJobCompleted = (resultData) => {
-    setActiveJobResult(resultData);
+  const handleJobCompleted = (targetTab, resultData) => {
+    setTabJobs((prev) => ({
+      ...prev,
+      [targetTab]: { jobId: null, result: resultData },
+    }));
   };
 
   const handleSelectTemplateFromGallery = (templateUrl) => {
@@ -104,33 +113,33 @@ export default function App() {
                   <>
                     {activeTab === 'sheet' && (
                       <SheetTab
-                        onStartJob={handleStartJob}
+                        onStartJob={(jobId) => handleStartJob(jobId, 'sheet')}
                         onOpenPreview={(templateUrl, sheetUrl) => setPreviewData({ templateUrl, sheetUrl })}
-                        activeJobResult={activeJobResult}
+                        activeJobResult={tabJobs.sheet?.result}
                         selectedTemplateUrl={selectedTemplateUrl}
                       />
                     )}
 
                     {activeTab === 'json' && (
                       <JsonTab
-                        onStartJob={handleStartJob}
-                        activeJobResult={activeJobResult}
+                        onStartJob={(jobId) => handleStartJob(jobId, 'json')}
+                        activeJobResult={tabJobs.json?.result}
                         selectedTemplateUrl={selectedTemplateUrl}
                       />
                     )}
 
                     {activeTab === 'gemini' && (
                       <GeminiTab
-                        onStartJob={handleStartJob}
-                        activeJobResult={activeJobResult}
+                        onStartJob={(jobId) => handleStartJob(jobId, 'gemini')}
+                        activeJobResult={tabJobs.gemini?.result}
                         selectedTemplateUrl={selectedTemplateUrl}
                       />
                     )}
 
                     {activeTab === 'multi-item-beta' && (
                       <MultiItemBetaTab
-                        onStartJob={handleStartJob}
-                        activeJobResult={activeJobResult}
+                        onStartJob={(jobId) => handleStartJob(jobId, 'multi-item-beta')}
+                        activeJobResult={tabJobs['multi-item-beta']?.result}
                         selectedTemplateUrl={selectedTemplateUrl}
                       />
                     )}
@@ -148,10 +157,10 @@ export default function App() {
                 )}
               </div>
 
-              {!isAdmin && activeJobId && (
+              {!isAdmin && tabJobs[activeTab]?.jobId && (
                 <ProgressCard
-                  jobId={activeJobId}
-                  onJobCompleted={handleJobCompleted}
+                  jobId={tabJobs[activeTab].jobId}
+                  onJobCompleted={(resultData) => handleJobCompleted(activeTab, resultData)}
                 />
               )}
             </div>
