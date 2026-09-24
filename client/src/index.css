@@ -831,6 +831,63 @@ textarea.form-control {
   position: relative;
 }
 
+/* User Account Credit Card Container — Mobile Responsive Fitting */
+.account-credit-card {
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(139, 92, 246, 0.08));
+  border: 1px solid rgba(79, 70, 229, 0.25);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .account-credit-card {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1rem;
+    gap: 0.85rem;
+  }
+  .account-credit-card .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* Pricing Cards Containers — Theme Adaptive (Light/Dark Mode Fix) */
+.pricing-card {
+  background: var(--bg-card-hover);
+  border: 1px solid var(--bg-card-border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  transition: var(--transition-fast);
+  color: var(--text-main);
+}
+
+.pricing-card.popular {
+  background: var(--bg-card);
+  border: 2px solid var(--primary);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.18);
+}
+
+[data-theme="dark"] .pricing-card {
+  background: var(--bg-card);
+  border-color: var(--bg-card-border);
+}
+
+[data-theme="dark"] .pricing-card.popular {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: var(--primary);
+}
+
 @keyframes popIn {
   from {
     opacity: 0;

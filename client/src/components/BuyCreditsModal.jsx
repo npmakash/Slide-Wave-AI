@@ -161,18 +161,7 @@ export default function BuyCreditsModal({ onClose }) {
             {packageList.map((pkg) => (
               <div
                 key={pkg.id}
-                style={{
-                  background: pkg.badge ? '#ffffff' : '#f8fafc',
-                  border: pkg.badge ? '2px solid var(--primary)' : '1px solid var(--bg-card-border)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '1.25rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  position: 'relative',
-                  transition: 'all 0.2s ease',
-                  boxShadow: pkg.badge ? '0 6px 20px rgba(79, 70, 229, 0.12)' : 'none',
-                }}
+                className={`pricing-card ${pkg.badge ? 'popular' : ''}`}
               >
                 {pkg.badge && (
                   <span
