@@ -24,6 +24,7 @@ const creditRoutes = require('./routes/credit.routes');
 const adminRoutes = require('./routes/admin.routes');
 const templateRoutes = require('./routes/template.routes');
 const connectDB = require('./config/db');
+const { isPlaceholderURI } = require('./config/db');
 const logger = require('./utils/logger');
 const { scheduleCleanup } = require('./utils/cleanup');
 
@@ -81,18 +82,25 @@ const mongoURI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/slidewave
 const mongoStoreCreate = MongoStore.create || MongoStore.MongoStore?.create || MongoStore.default?.create;
 
 let sessionStore;
-try {
-  if (typeof mongoStoreCreate === 'function') {
+if (!isPlaceholderURI(mongoURI) && typeof mongoStoreCreate === 'function') {
+  try {
     sessionStore = mongoStoreCreate({
       mongoUrl: mongoURI,
-      ttl: 7 * 86400, // 7 days session lifetime
-      touchAfter: 24 * 3600, // update session once per 24 hours unless data changed
+      ttl: 7 * 86400,
+      touchAfter: 24 * 3600,
     });
-  } else {
-    throw new Error('MongoStore.create method unavailable');
+    sessionStore.on('error', (err) => {
+      logger.warn(`MongoStore session warning: ${err.message}`);
+    });
+  } catch (err) {
+    logger.warn(`MongoStore initialization error, falling back to FileStore: ${err.message}`);
+    sessionStore = new FileStore({
+      path: path.join(__dirname, 'sessions'),
+      ttl: 7 * 86400,
+    });
   }
-} catch (err) {
-  logger.warn(`MongoStore initialization warning, falling back to FileStore: ${err.message}`);
+} else {
+  logger.warn('⚠️ MONGODB_URI is unconfigured or using local fallback. Using FileStore session storage.');
   sessionStore = new FileStore({
     path: path.join(__dirname, 'sessions'),
     ttl: 7 * 86400,
