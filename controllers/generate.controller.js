@@ -17,20 +17,15 @@ const { extractGoogleFileId } = require('../middleware/validate.middleware');
 const logger = require('../utils/logger');
 
 
+const HistoryController = require('./history.controller');
+
 // In-memory active jobs map
 const jobs = new Map();
-const HISTORY_FILE = path.join(__dirname, '..', 'data', 'history.json');
 
-/** Save history item to data/history.json with user isolation */
-function saveHistoryItem(item) {
+/** Save history item using HistoryController (MongoDB + local fallback) */
+async function saveHistoryItem(item) {
   try {
-    let history = [];
-    if (fs.existsSync(HISTORY_FILE)) {
-      history = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf-8'));
-    }
-    history.unshift(item); // Prepend newest
-    if (history.length > 500) history = history.slice(0, 500); // Max 500 records
-    fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2), 'utf-8');
+    await HistoryController.saveHistoryItem(item);
   } catch (err) {
     logger.error(`Failed to save history item: ${err.message}`);
   }

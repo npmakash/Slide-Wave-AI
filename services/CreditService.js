@@ -1,6 +1,7 @@
 /**
  * services/CreditService.js
- * Persistent credit balance and transaction logs backed by MongoDB (with local JSON fallback)
+ * Scalable, thread-safe persistent credit balance and transaction manager
+ * backed by MongoDB (with automatic local fallback migration)
  */
 
 const fs = require('fs');
@@ -11,7 +12,6 @@ const Transaction = require('../models/Transaction');
 const logger = require('../utils/logger');
 
 const CREDITS_FILE = path.join(__dirname, '..', 'data', 'credits.json');
-const DEFAULT_INITIAL_CREDITS = 0; // New users start with 0 credits (must purchase credits)
 
 const CREDIT_PACKAGES = {
   pkg_5: { id: 'pkg_5', amountInRs: 5, credits: 10, bonus: 0, label: '10 Credits' },
@@ -22,6 +22,11 @@ const CREDIT_PACKAGES = {
 
 function isMongoConnected() {
   return mongoose.connection && mongoose.connection.readyState === 1;
+}
+
+function normalizeEmail(email) {
+  if (!email) return 'anonymous';
+  return String(email).toLowerCase().trim();
 }
 
 class CreditService {
@@ -52,27 +57,32 @@ class CreditService {
 
   /**
    * Synchronize Google OAuth login user with MongoDB
-   * Creates User if new with 0 credits
+   * Ensures credits are NEVER reset to 0 upon login or server restart.
    */
   static async syncUserWithDB(googleUser) {
     if (!googleUser || !googleUser.email) return googleUser;
+    const email = normalizeEmail(googleUser.email);
 
     if (isMongoConnected()) {
       try {
-        let user = await User.findOne({ email: googleUser.email.toLowerCase() });
+        let user = await User.findOne({ email });
 
         if (!user) {
+          // Check if user had local json credits before Mongo connection
+          const localData = CreditService._readData();
+          const localBalance = localData[email]?.balance || 0;
+
           user = await User.create({
-            email: googleUser.email.toLowerCase(),
+            email,
             googleId: googleUser.id,
-            name: googleUser.name || 'Slide Wave User',
+            name: googleUser.name || email.split('@')[0],
             picture: googleUser.picture,
-            credits: 0,
+            credits: localBalance,
           });
 
-          logger.info(`🍃 Created new MongoDB User: ${user.email} with 0 credits`);
+          logger.info(`🍃 Created new MongoDB User: ${user.email} with ${localBalance} initial credits`);
         } else {
-          // Update profile attributes
+          // Update profile details without overwriting credits
           user.name = googleUser.name || user.name;
           user.picture = googleUser.picture || user.picture;
           if (googleUser.id) user.googleId = googleUser.id;
@@ -94,9 +104,8 @@ class CreditService {
 
     // Local JSON fallback
     const localData = CreditService._readData();
-    const key = googleUser.email.toLowerCase();
-    if (!localData[key]) {
-      localData[key] = {
+    if (!localData[email]) {
+      localData[email] = {
         balance: 0,
         transactions: [],
       };
@@ -105,7 +114,8 @@ class CreditService {
 
     return {
       ...googleUser,
-      credits: localData[key].balance,
+      email,
+      credits: localData[email].balance,
     };
   }
 
@@ -113,17 +123,20 @@ class CreditService {
    * Get full credit info and transactions history for user
    */
   static async getCreditInfo(userKey) {
-    const email = userKey ? userKey.toLowerCase() : 'default_user';
+    const email = normalizeEmail(userKey);
 
     if (isMongoConnected()) {
       try {
         let user = await User.findOne({ email });
 
         if (!user && email.includes('@')) {
+          const localData = CreditService._readData();
+          const localBalance = localData[email]?.balance || 0;
+
           user = await User.create({
             email,
             name: email.split('@')[0],
-            credits: 0,
+            credits: localBalance,
           });
         }
 
@@ -138,7 +151,7 @@ class CreditService {
             razorpayPaymentId: t.razorpayPaymentId,
             razorpayOrderId: t.razorpayOrderId,
             description: t.description,
-            date: t.createdAt.toISOString(),
+            date: t.createdAt ? t.createdAt.toISOString() : new Date().toISOString(),
           }));
 
           return {
@@ -163,46 +176,58 @@ class CreditService {
     return data[email];
   }
 
-
   /**
    * Get current balance for user
    */
   static async getBalance(userKey) {
-    const info = await CreditService.getCreditInfo(userKey);
+    const email = normalizeEmail(userKey);
+
+    if (isMongoConnected()) {
+      try {
+        const user = await User.findOne({ email });
+        if (user) return user.credits;
+      } catch (err) {
+        logger.error(`MongoDB getBalance error: ${err.message}`);
+      }
+    }
+
+    const info = await CreditService.getCreditInfo(email);
     return info.balance || 0;
   }
 
   /**
-   * Deduct credits from user account
+   * Deduct credits from user account (Atomic MongoDB operation)
    */
   static async deductCredits(userKey, count, description = 'Slide Generation') {
-    const email = userKey ? userKey.toLowerCase() : 'default_user';
+    const email = normalizeEmail(userKey);
+    const amountToDeduct = Math.abs(Number(count) || 0);
+
+    if (amountToDeduct <= 0) return await CreditService.getBalance(email);
 
     if (isMongoConnected()) {
       try {
-        let user = await User.findOne({ email });
+        // Atomic find & update with balance check
+        const user = await User.findOneAndUpdate(
+          { email, credits: { $gte: amountToDeduct } },
+          { $inc: { credits: -amountToDeduct } },
+          { new: true }
+        );
+
         if (!user) {
-          await CreditService.getCreditInfo(email);
-          user = await User.findOne({ email });
+          const existing = await User.findOne({ email });
+          const avail = existing ? existing.credits : 0;
+          throw new Error(`Insufficient credits. Required: ${amountToDeduct}, Available: ${avail}`);
         }
-
-        if (!user || user.credits < count) {
-          const avail = user ? user.credits : 0;
-          throw new Error(`Insufficient credits. Required: ${count}, Available: ${avail}`);
-        }
-
-        user.credits -= count;
-        await user.save();
 
         await Transaction.create({
           userId: user._id,
           userEmail: email,
           type: 'usage',
-          credits: -count,
+          credits: -amountToDeduct,
           description,
         });
 
-        logger.info(`🍃 MongoDB: Deducted ${count} credits from ${email}. Remaining: ${user.credits}`);
+        logger.info(`🍃 MongoDB Atomic: Deducted ${amountToDeduct} credits from ${email}. Remaining: ${user.credits}`);
         return user.credits;
       } catch (err) {
         if (err.message.includes('Insufficient credits')) throw err;
@@ -213,46 +238,50 @@ class CreditService {
     // Local JSON fallback
     const data = CreditService._readData();
     if (!data[email]) {
-      await CreditService.getCreditInfo(email);
-      return CreditService.deductCredits(email, count, description);
+      data[email] = { balance: 0, transactions: [] };
     }
 
-    if (data[email].balance < count) {
-      throw new Error(`Insufficient credits. Required: ${count}, Available: ${data[email].balance}`);
+    if (data[email].balance < amountToDeduct) {
+      throw new Error(`Insufficient credits. Required: ${amountToDeduct}, Available: ${data[email].balance}`);
     }
 
-    data[email].balance -= count;
+    data[email].balance -= amountToDeduct;
     data[email].transactions.unshift({
       id: `tx_${Date.now()}_usage`,
       type: 'usage',
-      credits: -count,
+      credits: -amountToDeduct,
       description,
       date: new Date().toISOString(),
     });
 
     CreditService._saveData(data);
-    logger.info(`Deducted ${count} credits from ${email}. Remaining: ${data[email].balance}`);
+    logger.info(`Local fallback: Deducted ${amountToDeduct} credits from ${email}. Remaining: ${data[email].balance}`);
     return data[email].balance;
   }
 
   /**
-   * Add purchased credits to user account
+   * Add purchased credits to user account (Atomic MongoDB operation)
    */
   static async addCredits(userKey, packageId, paymentId, orderId) {
-    const email = userKey ? userKey.toLowerCase() : 'default_user';
+    const email = normalizeEmail(userKey);
     const pkg = CREDIT_PACKAGES[packageId];
     if (!pkg) throw new Error(`Invalid credit package: ${packageId}`);
 
     if (isMongoConnected()) {
       try {
-        let user = await User.findOne({ email });
-        if (!user) {
-          await CreditService.getCreditInfo(email);
-          user = await User.findOne({ email });
-        }
+        let user = await User.findOneAndUpdate(
+          { email },
+          { $inc: { credits: pkg.credits } },
+          { new: true }
+        );
 
-        user.credits += pkg.credits;
-        await user.save();
+        if (!user) {
+          user = await User.create({
+            email,
+            name: email.split('@')[0],
+            credits: pkg.credits,
+          });
+        }
 
         await Transaction.create({
           userId: user._id,
@@ -266,7 +295,7 @@ class CreditService {
           description: `Purchased ${pkg.credits} Credits (₹${pkg.amountInRs})`,
         });
 
-        logger.info(`🍃 MongoDB: Added ${pkg.credits} credits to ${email}. New Balance: ${user.credits}`);
+        logger.info(`🍃 MongoDB Atomic: Added ${pkg.credits} credits to ${email}. New Balance: ${user.credits}`);
         return user.credits;
       } catch (err) {
         logger.error(`MongoDB addCredits error: ${err.message}`);
@@ -276,12 +305,11 @@ class CreditService {
     // Local JSON fallback
     const data = CreditService._readData();
     if (!data[email]) {
-      await CreditService.getCreditInfo(email);
+      data[email] = { balance: 0, transactions: [] };
     }
 
-    const currentData = data[email] || (await CreditService.getCreditInfo(email));
-    currentData.balance += pkg.credits;
-    currentData.transactions.unshift({
+    data[email].balance += pkg.credits;
+    data[email].transactions.unshift({
       id: `tx_${Date.now()}_purchase`,
       type: 'purchase',
       packageId: pkg.id,
@@ -293,11 +321,71 @@ class CreditService {
       date: new Date().toISOString(),
     });
 
-    data[email] = currentData;
     CreditService._saveData(data);
+    logger.info(`Local fallback: Added ${pkg.credits} credits to ${email}. New Balance: ${data[email].balance}`);
+    return data[email].balance;
+  }
 
-    logger.info(`Added ${pkg.credits} credits to ${email}. New Balance: ${currentData.balance}`);
-    return currentData.balance;
+  /**
+   * Grant bonus/admin credits to user (Atomic MongoDB operation)
+   */
+  static async grantCredits(userKey, creditAmount, reason = 'Admin granted credits') {
+    const email = normalizeEmail(userKey);
+    const amountToAdd = Number(creditAmount);
+
+    if (isNaN(amountToAdd) || amountToAdd <= 0) {
+      throw new Error('Invalid credit amount to grant.');
+    }
+
+    if (isMongoConnected()) {
+      try {
+        let user = await User.findOneAndUpdate(
+          { email },
+          { $inc: { credits: amountToAdd } },
+          { new: true }
+        );
+
+        if (!user) {
+          user = await User.create({
+            email,
+            name: email.split('@')[0],
+            credits: amountToAdd,
+          });
+        }
+
+        await Transaction.create({
+          userId: user._id,
+          userEmail: email,
+          type: 'bonus',
+          credits: amountToAdd,
+          description: `👑 ${reason}`,
+        });
+
+        logger.info(`👑 MongoDB Atomic: Granted ${amountToAdd} credits to ${email}. New Balance: ${user.credits}`);
+        return user.credits;
+      } catch (err) {
+        logger.error(`MongoDB grantCredits error: ${err.message}`);
+      }
+    }
+
+    // Local JSON fallback
+    const data = CreditService._readData();
+    if (!data[email]) {
+      data[email] = { balance: 0, transactions: [] };
+    }
+
+    data[email].balance += amountToAdd;
+    data[email].transactions.unshift({
+      id: `tx_${Date.now()}_admin_bonus`,
+      type: 'bonus',
+      credits: amountToAdd,
+      description: `👑 ${reason}`,
+      date: new Date().toISOString(),
+    });
+
+    CreditService._saveData(data);
+    logger.info(`👑 Local fallback: Granted ${amountToAdd} credits to ${email}. New Balance: ${data[email].balance}`);
+    return data[email].balance;
   }
 
   static getPackages() {

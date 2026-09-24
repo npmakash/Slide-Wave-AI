@@ -6,8 +6,8 @@ export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('slidewave-theme');
     if (saved === 'dark' || saved === 'light') return saved;
-    // Default to light (Rich White) or check system preference
-    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    // Default to Dark Black mode for premium modern look
+    return 'dark';
   });
 
   useEffect(() => {

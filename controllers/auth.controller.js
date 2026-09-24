@@ -1,6 +1,6 @@
 /**
  * controllers/auth.controller.js
- * OAuth login, callback, status, logout
+ * OAuth login, callback, status, logout with real-time credit syncing
  */
 
 const GoogleAuthService = require('../services/GoogleAuthService');
@@ -69,10 +69,21 @@ class AuthController {
   static async status(req, res) {
     if (req.session?.tokens && req.session?.user) {
       const isAdmin = Boolean(req.session.user.email && req.session.user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+
+      // Always fetch fresh real-time credit balance from CreditService / DB
+      let currentCredits = req.session.user.credits || 0;
+      try {
+        currentCredits = await CreditService.getBalance(req.session.user.email);
+        req.session.user.credits = currentCredits;
+      } catch (err) {
+        logger.warn(`Failed to fetch live balance for ${req.session.user.email}: ${err.message}`);
+      }
+
       return res.json({
         authenticated: true,
         user: {
           ...req.session.user,
+          credits: currentCredits,
           isAdmin,
         },
       });

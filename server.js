@@ -9,6 +9,7 @@ const express = require('express');
 const path = require('path');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
+const MongoStore = require('connect-mongo');
 const helmet = require('helmet');
 const cors = require('cors');
 const fs = require('fs');
@@ -74,14 +75,33 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ─── Session (7 Days / 1 Week Persistence) ──────────────────────────────────
+// ─── Session Store Setup (MongoDB MongoStore with FileStore Fallback) ────────
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const mongoURI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/slidewave';
+const mongoStoreCreate = MongoStore.create || MongoStore.MongoStore?.create || MongoStore.default?.create;
+
+let sessionStore;
+try {
+  if (typeof mongoStoreCreate === 'function') {
+    sessionStore = mongoStoreCreate({
+      mongoUrl: mongoURI,
+      ttl: 7 * 86400, // 7 days session lifetime
+      touchAfter: 24 * 3600, // update session once per 24 hours unless data changed
+    });
+  } else {
+    throw new Error('MongoStore.create method unavailable');
+  }
+} catch (err) {
+  logger.warn(`MongoStore initialization warning, falling back to FileStore: ${err.message}`);
+  sessionStore = new FileStore({
+    path: path.join(__dirname, 'sessions'),
+    ttl: 7 * 86400,
+  });
+}
+
 app.use(
   session({
-    store: new FileStore({
-      path: path.join(__dirname, 'sessions'),
-      ttl: 7 * 86400, // 7 days (604,800 seconds)
-    }),
+    store: sessionStore,
     secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
     resave: false,
     saveUninitialized: false,
@@ -89,7 +109,7 @@ app.use(
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       httpOnly: true,
-      maxAge: SEVEN_DAYS_MS, // 7 days (1 week) persistence
+      maxAge: SEVEN_DAYS_MS, // 7 days persistence
     },
   })
 );
@@ -150,6 +170,5 @@ app.listen(PORT, HOST, async () => {
   await connectDB();
   scheduleCleanup();
 });
-
 
 module.exports = app;
