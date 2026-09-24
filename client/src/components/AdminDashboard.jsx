@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Users, Sparkles, Presentation, Search, PlusCircle, ShieldCheck, X, RefreshCw, MessageSquare, Trash2, Mail, Trash, Clock } from 'lucide-react';
+import { Users, Sparkles, Presentation, Search, PlusCircle, ShieldCheck, X, RefreshCw, MessageSquare, Trash2, Mail, Trash, Clock, History, ArrowUpRight, ArrowDownRight, Gift } from 'lucide-react';
 import api from '../services/api';
+import socket from '../services/socket';
 import { useToast } from '../context/ToastContext';
 
 export default function AdminDashboard({ onRefreshCredits }) {
@@ -10,10 +11,20 @@ export default function AdminDashboard({ onRefreshCredits }) {
   const [supportMessages, setSupportMessages] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [selectedUser, setSelectedUser] = useState(null); // User object for credit modal
+
+  // Grant Credits Modal state
+  const [selectedUser, setSelectedUser] = useState(null);
   const [grantAmount, setGrantAmount] = useState(50);
   const [grantReason, setGrantReason] = useState('Admin Grant');
   const [submitting, setSubmitting] = useState(false);
+
+  // User Credit History Modal state
+  const [historyUser, setHistoryUser] = useState(null);
+  const [historyTransactions, setHistoryTransactions] = useState([]);
+  const [historyBalance, setHistoryBalance] = useState(0);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Clear All Messages Confirm Modal state
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
   const [clearingMessages, setClearingMessages] = useState(false);
 
@@ -41,6 +52,51 @@ export default function AdminDashboard({ onRefreshCredits }) {
   useEffect(() => {
     fetchAdminData();
   }, [fetchAdminData]);
+
+  // Real-time Socket.IO event listeners for Developer Support Inbox updates without refreshing
+  useEffect(() => {
+    socket.emit('join_admin');
+
+    const handleNewMsg = (newMsg) => {
+      setSupportMessages((prev) => [newMsg, ...prev.filter((m) => m.id !== newMsg.id)]);
+      showToast(`🔔 Real-Time: New Developer Support message from ${newMsg.userEmail}`, 'info');
+    };
+
+    const handleDeleteMsg = ({ id }) => {
+      setSupportMessages((prev) => prev.filter((m) => m.id !== id));
+    };
+
+    const handleClearedMsgs = () => {
+      setSupportMessages([]);
+    };
+
+    socket.on('support_message_new', handleNewMsg);
+    socket.on('support_message_delete', handleDeleteMsg);
+    socket.on('support_messages_cleared', handleClearedMsgs);
+
+    return () => {
+      socket.off('support_message_new', handleNewMsg);
+      socket.off('support_message_delete', handleDeleteMsg);
+      socket.off('support_messages_cleared', handleClearedMsgs);
+    };
+  }, [showToast]);
+
+  // View specific user transaction & credit history
+  const handleFetchUserHistory = async (targetUser) => {
+    try {
+      setHistoryUser(targetUser);
+      setLoadingHistory(true);
+      const res = await api.get(`/api/admin/users/${encodeURIComponent(targetUser.email)}/transactions`);
+      if (res.data.success) {
+        setHistoryTransactions(res.data.transactions || []);
+        setHistoryBalance(res.data.balance || 0);
+      }
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to fetch user credit history', 'error');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   const handleGrantCredits = async (e) => {
     e.preventDefault();
@@ -201,7 +257,7 @@ export default function AdminDashboard({ onRefreshCredits }) {
         <div style={{ background: 'rgba(139, 92, 246, 0.12)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent)', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem' }}>
             <MessageSquare size={18} />
-            <span>Support Inbox Messages</span>
+            <span>Support Inbox (Live)</span>
           </div>
           <div style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-main)' }}>
             {supportMessages.length}
@@ -281,19 +337,31 @@ export default function AdminDashboard({ onRefreshCredits }) {
                         {new Date(u.createdAt).toLocaleDateString()}
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <button
-                          type="button"
-                          className="btn btn-primary"
-                          onClick={() => {
-                            setSelectedUser(u);
-                            setGrantAmount(50);
-                            setGrantReason('Admin Bonus Grant');
-                          }}
-                          style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', minHeight: '34px' }}
-                        >
-                          <PlusCircle size={14} />
-                          <span>Add Credits</span>
-                        </button>
+                        <div style={{ display: 'inline-flex', gap: '0.4rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => handleFetchUserHistory(u)}
+                            style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', minHeight: '34px' }}
+                            title="View user credit transaction history"
+                          >
+                            <History size={14} />
+                            <span>Credit History</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={() => {
+                              setSelectedUser(u);
+                              setGrantAmount(50);
+                              setGrantReason('Admin Bonus Grant');
+                            }}
+                            style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', minHeight: '34px' }}
+                          >
+                            <PlusCircle size={14} />
+                            <span>Add Credits</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -309,11 +377,14 @@ export default function AdminDashboard({ onRefreshCredits }) {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-main)', fontWeight: 600 }}>
-                Developer Support Inbox
+              <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-main)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>Developer Support Inbox</span>
+                <span style={{ fontSize: '0.7rem', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)', padding: '0.15rem 0.5rem', borderRadius: '12px', fontWeight: 700 }}>
+                  LIVE REAL-TIME
+                </span>
               </h3>
               <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                Uni-directional user support messages sent from user account modal
+                Uni-directional user support messages updated live without refreshing
               </p>
             </div>
 
@@ -416,6 +487,148 @@ export default function AdminDashboard({ onRefreshCredits }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* User Credit & Transaction History Modal (Admin Viewing User History) */}
+      {historyUser && (
+        <div className="modal-backdrop" onClick={() => setHistoryUser(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px', width: '92%' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ background: 'var(--primary-light)', padding: '0.5rem', borderRadius: '10px', color: 'var(--primary)' }}>
+                  <History size={22} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-main)', fontWeight: 600 }}>
+                    Credit History for {historyUser.name}
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Target email: {historyUser.email}
+                  </p>
+                </div>
+              </div>
+              <button className="icon-btn" onClick={() => setHistoryUser(null)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ paddingTop: '1rem' }}>
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(139, 92, 246, 0.08))',
+                  border: '1px solid rgba(79, 70, 229, 0.25)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '1rem 1.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '1.25rem',
+                }}
+              >
+                <span style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Current User Balance</span>
+                <span style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Sparkles size={20} />
+                  {historyBalance} Credits
+                </span>
+              </div>
+
+              {loadingHistory ? (
+                <div style={{ padding: '2rem', textAlign: 'center' }}>
+                  <div className="spinner" style={{ margin: '0 auto 0.5rem' }} />
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Loading transaction logs...</span>
+                </div>
+              ) : historyTransactions.length === 0 ? (
+                <div style={{ padding: '2rem', textAlign: 'center', background: 'var(--bg-body)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--bg-card-border)' }}>
+                  <span style={{ fontSize: '0.88rem', color: 'var(--text-muted)', fontWeight: 500 }}>No transaction history recorded for this user.</span>
+                </div>
+              ) : (
+                <div style={{ maxHeight: '280px', overflowY: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-card-border)' }}>
+                  <table className="preview-table" style={{ margin: 0 }}>
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th style={{ textAlign: 'right' }}>Credits</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historyTransactions.map((tx, idx) => {
+                        const isPositive = tx.credits > 0;
+                        return (
+                          <tr key={tx.id || idx}>
+                            <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                              {new Date(tx.date).toLocaleDateString()} {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </td>
+                            <td>
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  fontSize: '0.72rem',
+                                  fontWeight: '700',
+                                  padding: '0.15rem 0.5rem',
+                                  borderRadius: '12px',
+                                  background:
+                                    tx.type === 'purchase'
+                                      ? 'rgba(16, 185, 129, 0.15)'
+                                      : tx.type === 'bonus'
+                                      ? 'rgba(139, 92, 246, 0.15)'
+                                      : 'rgba(239, 68, 68, 0.15)',
+                                  color:
+                                    tx.type === 'purchase'
+                                      ? 'var(--success)'
+                                      : tx.type === 'bonus'
+                                      ? 'var(--accent)'
+                                      : 'var(--danger)',
+                                }}
+                              >
+                                {tx.type === 'purchase' ? (
+                                  <ArrowUpRight size={11} />
+                                ) : tx.type === 'bonus' ? (
+                                  <Gift size={11} />
+                                ) : (
+                                  <ArrowDownRight size={11} />
+                                )}
+                                {tx.type.toUpperCase()}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: '0.85rem', fontWeight: 500 }}>
+                              {tx.description}
+                              {tx.razorpayPaymentId && (
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                  Ref: {tx.razorpayPaymentId}
+                                </div>
+                              )}
+                            </td>
+                            <td
+                              style={{
+                                textAlign: 'right',
+                                fontWeight: 'bold',
+                                fontSize: '0.88rem',
+                                color: isPositive ? 'var(--success)' : 'var(--danger)',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {isPositive ? `+${tx.credits}` : tx.credits}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setHistoryUser(null)}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

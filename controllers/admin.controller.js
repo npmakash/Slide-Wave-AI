@@ -166,6 +166,29 @@ class AdminController {
       res.status(500).json({ error: err.message });
     }
   }
+
+  /** GET /api/admin/users/:email/transactions — View target user credit & transaction history */
+  static async getUserTransactions(req, res) {
+    try {
+      const { email } = req.params;
+      if (!email) {
+        return res.status(400).json({ error: 'Target user email is required.' });
+      }
+
+      const targetEmail = String(email).toLowerCase().trim();
+      const creditInfo = await CreditService.getCreditInfo(targetEmail);
+
+      return res.json({
+        success: true,
+        email: targetEmail,
+        balance: creditInfo.balance || 0,
+        transactions: creditInfo.transactions || [],
+      });
+    } catch (err) {
+      logger.error(`Admin getUserTransactions error: ${err.message}`);
+      res.status(500).json({ error: err.message });
+    }
+  }
 }
 
 module.exports = AdminController;

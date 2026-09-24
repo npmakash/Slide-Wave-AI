@@ -6,6 +6,7 @@
 require('dotenv').config();
 
 const express = require('express');
+const http = require('http');
 const path = require('path');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
@@ -13,6 +14,7 @@ const MongoStore = require('connect-mongo');
 const helmet = require('helmet');
 const cors = require('cors');
 const fs = require('fs');
+const { initSocket } = require('./services/SocketService');
 
 const { rateLimiter } = require('./middleware/rateLimiter');
 const authRoutes = require('./routes/auth.routes');
@@ -172,11 +174,14 @@ app.use((err, req, res, _next) => {
   });
 });
 
-// ─── Start Server ─────────────────────────────────────────────────────────────
+// ─── Start Server with Socket.IO ──────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
-app.listen(PORT, HOST, async () => {
-  logger.info(`🚀 Slide Wave AI running at:`);
+const server = http.createServer(app);
+initSocket(server);
+
+server.listen(PORT, HOST, async () => {
+  logger.info(`🚀 Slide Wave AI running with Socket.IO at:`);
   logger.info(`   - Local:   http://localhost:${PORT}`);
   logger.info(`   - Network: http://10.13.104.179:${PORT}`);
   await connectDB();

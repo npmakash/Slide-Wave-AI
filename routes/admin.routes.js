@@ -13,6 +13,7 @@ router.use(requireAuth);
 router.use(requireAdmin);
 
 router.get('/users', AdminController.getAllUsers);
+router.get('/users/:email/transactions', AdminController.getUserTransactions);
 router.get('/stats', AdminController.getAdminStats);
 router.post('/credits/add', AdminController.addCreditsToUser);
 

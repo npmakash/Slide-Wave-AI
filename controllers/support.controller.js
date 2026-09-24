@@ -4,6 +4,7 @@
  */
 
 const SupportService = require('../services/SupportService');
+const SocketService = require('../services/SocketService');
 const logger = require('../utils/logger');
 
 class SupportController {
@@ -27,6 +28,9 @@ class SupportController {
         userPicture: user.picture,
         message: String(message).trim(),
       });
+
+      // Emit real-time Socket.IO event to admin
+      SocketService.emitNewSupportMessage(created);
 
       return res.json({
         success: true,
@@ -58,6 +62,10 @@ class SupportController {
   static async clearAllMessages(req, res) {
     try {
       await SupportService.deleteAllMessages();
+
+      // Emit real-time Socket.IO event
+      SocketService.emitSupportMessagesCleared();
+
       return res.json({
         success: true,
         message: 'All support messages have been cleared from the database.',
@@ -75,6 +83,10 @@ class SupportController {
       if (!id) return res.status(400).json({ error: 'Message ID is required.' });
 
       await SupportService.deleteMessageById(id);
+
+      // Emit real-time Socket.IO event
+      SocketService.emitSupportMessageDeleted(id);
+
       return res.json({
         success: true,
         message: `Message deleted successfully.`,
