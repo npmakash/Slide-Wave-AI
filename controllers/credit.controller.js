@@ -68,13 +68,18 @@ class CreditController {
         const sheetsService = new SheetsService(auth);
         const { records } = await sheetsService.readRows(sheetId, sheetName, skipEmptyRows);
         rowCount = records.length;
-      } else if (sourceType === 'json' || sourceType === 'gemini') {
-        if (!Array.isArray(data)) {
-          return res.status(400).json({ error: 'data must be an array of objects.' });
+      } else if (sourceType === 'json' || sourceType === 'gemini' || sourceType === 'csv') {
+        if (Array.isArray(data)) {
+          rowCount = data.length;
+        } else if (typeof req.body.csvText === 'string') {
+          const { parseCSV } = require('../utils/csvParser');
+          const { records } = parseCSV(req.body.csvText);
+          rowCount = records.length;
+        } else {
+          return res.status(400).json({ error: 'data array or csvText string is required for CSV/JSON estimate.' });
         }
-        rowCount = data.length;
       } else {
-        return res.status(400).json({ error: 'Invalid sourceType. Expected sheet, json, or gemini.' });
+        return res.status(400).json({ error: 'Invalid sourceType. Expected sheet, json, gemini, or csv.' });
       }
 
       const perPage = isMultiItem ? Math.max(1, parseInt(itemsPerPage || 12, 10)) : 1;

@@ -25,7 +25,7 @@ const historySchema = new mongoose.Schema(
     },
     sourceType: {
       type: String,
-      enum: ['sheet', 'json', 'gemini'],
+      enum: ['sheet', 'json', 'gemini', 'csv'],
       required: true,
     },
     presentationId: {

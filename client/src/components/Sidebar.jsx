@@ -12,8 +12,8 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onClose, onOp
   const regularNavItems = [
     {
       id: 'sheet',
-      label: 'Google Sheets',
-      sublabel: 'Import tabular data',
+      label: 'Sheets & CSV',
+      sublabel: 'Import Google Sheet or CSV file',
       icon: Table,
     },
     {

@@ -18,7 +18,7 @@ export default function Navbar({ activeTab, onToggleMobileSidebar, onOpenBuyCred
       case 'admin-templates':
         return { title: 'Admin Template Manager', icon: Layers };
       case 'sheet':
-        return { title: 'Google Sheet Generator', icon: Table };
+        return { title: 'Google Sheet & CSV Generator', icon: Table };
       case 'json':
         return { title: 'JSON Array Generator', icon: Code };
       case 'gemini':

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Grid, Layers, Sparkles, Link, FileCode, Upload, Rocket, FileText, Image as ImageIcon, Type, Info, HelpCircle, Copy, Check } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Grid, Layers, Sparkles, Link, FileCode, Upload, Rocket, FileText, Image as ImageIcon, Type, Info, HelpCircle, Copy, Check, FileSpreadsheet, CheckCircle } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useCredits } from '../context/CreditContext';
 import ConfirmCreditModal from './ConfirmCreditModal';
+import { parseCSV } from '../utils/csvParser';
 
 const DEFAULT_TEMPLATE_URL = 'https://docs.google.com/presentation/d/1EL90TLpXULg_aAmtvzC3GqSPqI6gmVtBru3DxdJj8To/edit?usp=sharing';
 const DEFAULT_JSON = `[
@@ -13,11 +14,18 @@ const DEFAULT_JSON = `[
 ]`;
 
 export default function MultiItemBetaTab({ onStartJob, activeJobResult, selectedTemplateUrl }) {
-  const [sourceType, setSourceType] = useState('json'); // 'json' | 'sheet'
+  const [sourceType, setSourceType] = useState('json'); // 'json' | 'sheet' | 'csv'
   const [templateUrl, setTemplateUrl] = useState(selectedTemplateUrl || DEFAULT_TEMPLATE_URL);
   const [sheetUrl, setSheetUrl] = useState('');
   const [sheetName, setSheetName] = useState('');
   const [jsonString, setJsonString] = useState(DEFAULT_JSON);
+  
+  // CSV mode states
+  const [csvText, setCsvText] = useState('');
+  const [csvFileName, setCsvFileName] = useState('');
+  const [parsedCsvInfo, setParsedCsvInfo] = useState({ count: 0, headers: [] });
+  const csvFileInputRef = useRef(null);
+
   const [copied, setCopied] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(12);
   const [outputName, setOutputName] = useState('');
@@ -36,22 +44,41 @@ export default function MultiItemBetaTab({ onStartJob, activeJobResult, selected
     }
   }, [selectedTemplateUrl]);
 
-  const handleFileUpload = (file) => {
-    if (!file.name.endsWith('.json')) {
-      showToast('Please select a valid .json file', 'warning');
-      return;
+  // Sync CSV parsing info
+  useEffect(() => {
+    if (sourceType === 'csv' && csvText) {
+      const { headers, records } = parseCSV(csvText);
+      setParsedCsvInfo({ count: records.length, headers });
+    } else {
+      setParsedCsvInfo({ count: 0, headers: [] });
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const parsed = JSON.parse(e.target.result);
-        setJsonString(JSON.stringify(parsed, null, 2));
-        showToast(`Loaded JSON file with ${Array.isArray(parsed) ? parsed.length : 1} items`, 'success');
-      } catch (err) {
-        showToast('Invalid JSON file format', 'error');
-      }
-    };
-    reader.readAsText(file);
+  }, [csvText, sourceType]);
+
+  const handleFileUpload = (file) => {
+    if (file.name.endsWith('.json')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          setJsonString(JSON.stringify(parsed, null, 2));
+          showToast(`Loaded JSON file with ${Array.isArray(parsed) ? parsed.length : 1} items`, 'success');
+        } catch (err) {
+          showToast('Invalid JSON file format', 'error');
+        }
+      };
+      reader.readAsText(file);
+    } else if (file.name.endsWith('.csv') || file.type === 'text/csv') {
+      setCsvFileName(file.name);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target.result;
+        setCsvText(content);
+        showToast(`Loaded ${file.name} successfully`, 'success');
+      };
+      reader.readAsText(file);
+    } else {
+      showToast('Please select a valid .json or .csv file', 'warning');
+    }
   };
 
   const handleDrop = (e) => {
@@ -75,17 +102,25 @@ export default function MultiItemBetaTab({ onStartJob, activeJobResult, selected
       return;
     }
 
-    let jsonArr = null;
+    let itemsArray = null;
+
     if (sourceType === 'json') {
       try {
-        jsonArr = JSON.parse(jsonString);
-        if (!Array.isArray(jsonArr) || jsonArr.length === 0) {
+        itemsArray = JSON.parse(jsonString);
+        if (!Array.isArray(itemsArray) || itemsArray.length === 0) {
           throw new Error('JSON data must be a non-empty array of objects.');
         }
       } catch (err) {
         showToast(`Invalid JSON input: ${err.message}`, 'error');
         return;
       }
+    } else if (sourceType === 'csv') {
+      const { records } = parseCSV(csvText);
+      if (!records || records.length === 0) {
+        showToast('CSV dataset cannot be empty', 'error');
+        return;
+      }
+      itemsArray = records;
     }
 
     try {
@@ -94,13 +129,13 @@ export default function MultiItemBetaTab({ onStartJob, activeJobResult, selected
         sourceType,
         sheetUrl: sourceType === 'sheet' ? sheetUrl : undefined,
         sheetName: sourceType === 'sheet' ? sheetName : undefined,
-        data: sourceType === 'json' ? jsonArr : undefined,
+        data: ['json', 'csv'].includes(sourceType) ? itemsArray : undefined,
         isMultiItem: true,
         itemsPerPage,
       });
 
       if (estimateRes.data.success) {
-        setParsedData(jsonArr);
+        setParsedData(itemsArray);
         setEstimateData(estimateRes.data);
       }
     } catch (err) {
@@ -114,21 +149,22 @@ export default function MultiItemBetaTab({ onStartJob, activeJobResult, selected
     setEstimateData(null);
     try {
       setSubmitting(true);
-      const endpoint = sourceType === 'sheet' ? '/api/generate-sheet' : '/api/generate-json';
-      const payload = sourceType === 'sheet' ? {
-        templateUrl,
-        sheetUrl,
-        sheetName,
-        outputName,
-        isMultiItem: true,
-        itemsPerPage: parseInt(itemsPerPage, 10),
-      } : {
+      let endpoint = '/api/generate-json';
+      if (sourceType === 'sheet') endpoint = '/api/generate-sheet';
+      if (sourceType === 'csv') endpoint = '/api/generate-csv';
+
+      let payload = {
         templateUrl,
         outputName,
-        data: parsedData,
         isMultiItem: true,
         itemsPerPage: parseInt(itemsPerPage, 10),
       };
+
+      if (sourceType === 'sheet') {
+        payload = { ...payload, sheetUrl, sheetName };
+      } else {
+        payload = { ...payload, data: parsedData };
+      }
 
       const res = await api.post(endpoint, payload);
       showToast('Multi-Item Batch Generation started in background!', 'success');
@@ -167,7 +203,7 @@ export default function MultiItemBetaTab({ onStartJob, activeJobResult, selected
           <Sparkles size={20} color="#6366f1" />
         </div>
         <div className="beta-info-text">
-          <strong>Multi-Placeholder Batching (Apps Script Engine)</strong>
+          <strong>Multi-Placeholder Batching (Sheet, CSV & JSON Engine)</strong>
           <p>
             Generate multiple items (e.g. 12 questions/cards per slide) using multi-slot placeholders like <code>{`{{question_1}}`}</code>, <code>{`{{question_2}}`}</code> ... <code>{`{{question_12}}`}</code>. 
             The system automatically batches data into chunks and auto-clears empty slots on the last slide!
@@ -183,15 +219,23 @@ export default function MultiItemBetaTab({ onStartJob, activeJobResult, selected
           onClick={() => setSourceType('json')}
         >
           <FileCode size={16} />
-          <span>JSON Array Input</span>
+          <span>JSON Array</span>
+        </button>
+        <button
+          type="button"
+          className={`source-toggle-btn ${sourceType === 'csv' ? 'active' : ''}`}
+          onClick={() => setSourceType('csv')}
+        >
+          <Upload size={16} />
+          <span>CSV File</span>
         </button>
         <button
           type="button"
           className={`source-toggle-btn ${sourceType === 'sheet' ? 'active' : ''}`}
           onClick={() => setSourceType('sheet')}
         >
-          <Link size={16} />
-          <span>Google Sheet Input</span>
+          <FileSpreadsheet size={16} />
+          <span>Google Sheet</span>
         </button>
       </div>
 
@@ -215,7 +259,7 @@ export default function MultiItemBetaTab({ onStartJob, activeJobResult, selected
           </div>
         </div>
 
-        {sourceType === 'sheet' ? (
+        {sourceType === 'sheet' && (
           <>
             <div className="form-group">
               <label htmlFor="beta-sheet-url">
@@ -250,7 +294,61 @@ export default function MultiItemBetaTab({ onStartJob, activeJobResult, selected
               />
             </div>
           </>
-        ) : (
+        )}
+
+        {sourceType === 'csv' && (
+          <div className="form-group">
+            <label>
+              <Upload size={16} />
+              <span>Upload CSV File or Paste Raw CSV *</span>
+            </label>
+
+            <div
+              className={`drag-drop-area ${dragOver ? 'drag-over' : ''}`}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={(e) => { e.preventDefault(); setDragOver(false); }}
+              onDrop={handleDrop}
+              onClick={() => csvFileInputRef.current?.click()}
+              style={{ minHeight: '90px', cursor: 'pointer' }}
+            >
+              <input
+                type="file"
+                ref={csvFileInputRef}
+                accept=".csv,text/csv"
+                style={{ display: 'none' }}
+                onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
+              />
+              <Upload size={22} color="var(--primary)" />
+              <div>
+                {csvFileName ? (
+                  <span style={{ fontWeight: 600, color: 'var(--success)' }}>
+                    <CheckCircle size={15} style={{ display: 'inline', marginRight: '4px' }} />
+                    {csvFileName} ({parsedCsvInfo.count} rows)
+                  </span>
+                ) : (
+                  <span>Drag & Drop a .csv file here, or click to browse</span>
+                )}
+              </div>
+            </div>
+
+            <textarea
+              className="form-control"
+              value={csvText}
+              onChange={(e) => { setCsvFileName(''); setCsvText(e.target.value); }}
+              placeholder="Or paste CSV text directly here..."
+              rows={4}
+              style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}
+            />
+
+            {parsedCsvInfo.count > 0 && (
+              <div className="help-text" style={{ color: 'var(--success)', fontWeight: 600 }}>
+                ✓ Parsed {parsedCsvInfo.count} items with headers: {parsedCsvInfo.headers.slice(0, 6).join(', ')}{parsedCsvInfo.headers.length > 6 ? '...' : ''}
+              </div>
+            )}
+          </div>
+        )}
+
+        {sourceType === 'json' && (
           <div className="form-group">
             <div className="form-label-row">
               <label style={{ margin: 0 }}>

@@ -38,6 +38,13 @@ router.post(
   GenerateController.generateFromJson
 );
 
+router.post(
+  '/generate-csv',
+  requireAuth,
+  generateLimiter,
+  GenerateController.generateFromCsv
+);
+
 router.get('/status/:jobId', requireAuth, GenerateController.getStatus);
 router.post('/cancel/:jobId', requireAuth, GenerateController.cancelJob);
 router.get('/logs/:jobId', requireAuth, GenerateController.getLogs);
