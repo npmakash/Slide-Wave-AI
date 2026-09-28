@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutTemplate, User, Plus, Trash2, Check, ExternalLink, X, Search, Globe, Sparkles, AlertCircle } from 'lucide-react';
+import { LayoutTemplate, User, Plus, Trash2, Check, ExternalLink, X, Search, Globe, Sparkles, AlertCircle, Pencil } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../context/ToastContext';
 
@@ -31,8 +31,9 @@ export default function TemplatePickerModal({ currentSelectedUrl, onSelectTempla
   const [loadingPublic, setLoadingPublic] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Add Personal Template Form states
+  // Add / Edit Personal Template Form states
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState(null);
   const [newTitle, setNewTitle] = useState('');
   const [newUrl, setNewUrl] = useState('');
   const [newTag, setNewTag] = useState('Custom');
@@ -86,7 +87,25 @@ export default function TemplatePickerModal({ currentSelectedUrl, onSelectTempla
     }
   };
 
-  const handleAddPersonalTemplate = (e) => {
+  const handleStartEdit = (template) => {
+    setEditingTemplateId(template.id);
+    setNewTitle(template.title);
+    setNewUrl(template.templateUrl);
+    setNewTag(template.tag || 'Custom');
+    setNewDesc(template.description || '');
+    setShowAddForm(true);
+  };
+
+  const handleCancelForm = () => {
+    setShowAddForm(false);
+    setEditingTemplateId(null);
+    setNewTitle('');
+    setNewUrl('');
+    setNewTag('Custom');
+    setNewDesc('');
+  };
+
+  const handleSaveOrUpdatePersonalTemplate = (e) => {
     e.preventDefault();
     if (!newTitle.trim() || !newUrl.trim()) {
       showToast('Please enter both Title and Google Slides Template URL', 'warning');
@@ -98,26 +117,42 @@ export default function TemplatePickerModal({ currentSelectedUrl, onSelectTempla
       return;
     }
 
-    const newItem = {
-      id: `custom_${Date.now()}`,
-      title: newTitle.trim(),
-      templateUrl: newUrl.trim(),
-      tag: newTag.trim() || 'Custom',
-      description: newDesc.trim() || 'Custom personal template link',
-      imageUrl: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=600&q=80',
-      isPersonal: true,
-      createdAt: new Date().toISOString(),
-    };
+    if (editingTemplateId) {
+      // Update existing personal template
+      const updated = personalTemplates.map((t) => {
+        if (t.id === editingTemplateId) {
+          return {
+            ...t,
+            title: newTitle.trim(),
+            templateUrl: newUrl.trim(),
+            tag: newTag.trim() || 'Custom',
+            description: newDesc.trim(),
+          };
+        }
+        return t;
+      });
 
-    const updated = [newItem, ...personalTemplates];
-    savePersonalTemplatesToStorage(updated);
+      savePersonalTemplatesToStorage(updated);
+      showToast(`Updated personal template "${newTitle.trim()}"`, 'success');
+    } else {
+      // Create new personal template
+      const newItem = {
+        id: `custom_${Date.now()}`,
+        title: newTitle.trim(),
+        templateUrl: newUrl.trim(),
+        tag: newTag.trim() || 'Custom',
+        description: newDesc.trim() || 'Custom personal template link',
+        imageUrl: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=600&q=80',
+        isPersonal: true,
+        createdAt: new Date().toISOString(),
+      };
 
-    showToast(`Saved personal template "${newItem.title}"`, 'success');
-    setNewTitle('');
-    setNewUrl('');
-    setNewTag('Custom');
-    setNewDesc('');
-    setShowAddForm(false);
+      const updated = [newItem, ...personalTemplates];
+      savePersonalTemplatesToStorage(updated);
+      showToast(`Saved personal template "${newItem.title}"`, 'success');
+    }
+
+    handleCancelForm();
   };
 
   const handleDeletePersonalTemplate = (id, title) => {
@@ -125,6 +160,9 @@ export default function TemplatePickerModal({ currentSelectedUrl, onSelectTempla
       const updated = personalTemplates.filter(t => t.id !== id);
       savePersonalTemplatesToStorage(updated);
       showToast(`Removed "${title}"`, 'info');
+      if (editingTemplateId === id) {
+        handleCancelForm();
+      }
     }
   };
 
@@ -373,13 +411,13 @@ export default function TemplatePickerModal({ currentSelectedUrl, onSelectTempla
                   </button>
                 </div>
               ) : (
-                /* Add Personal Template Form */
-                <form onSubmit={handleAddPersonalTemplate} style={{ background: 'var(--bg-body)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--primary-light)', marginBottom: '1.5rem' }}>
+                /* Add / Edit Personal Template Form */
+                <form onSubmit={handleSaveOrUpdatePersonalTemplate} style={{ background: 'var(--bg-body)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--primary-light)', marginBottom: '1.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
                     <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <Sparkles size={16} color="var(--primary)" /> Save Custom Template Link
+                      <Sparkles size={16} color="var(--primary)" /> {editingTemplateId ? 'Edit Personal Template' : 'Save Custom Template Link'}
                     </h3>
-                    <button type="button" onClick={() => setShowAddForm(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                    <button type="button" onClick={handleCancelForm} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                       <X size={18} />
                     </button>
                   </div>
@@ -441,11 +479,11 @@ export default function TemplatePickerModal({ currentSelectedUrl, onSelectTempla
                   </div>
 
                   <div style={{ display: 'flex', gap: '0.65rem', justifyContent: 'flex-end' }}>
-                    <button type="button" className="btn btn-secondary" onClick={() => setShowAddForm(false)} style={{ padding: '0.45rem 0.9rem', fontSize: '0.82rem' }}>
+                    <button type="button" className="btn btn-secondary" onClick={handleCancelForm} style={{ padding: '0.45rem 0.9rem', fontSize: '0.82rem' }}>
                       Cancel
                     </button>
                     <button type="submit" className="btn btn-primary" style={{ padding: '0.45rem 1rem', fontSize: '0.82rem' }}>
-                      <Check size={15} /> Save Template
+                      <Check size={15} /> {editingTemplateId ? 'Update Template' : 'Save Template'}
                     </button>
                   </div>
                 </form>
@@ -498,14 +536,24 @@ export default function TemplatePickerModal({ currentSelectedUrl, onSelectTempla
                                 {tpl.tag || 'Personal'}
                               </span>
 
-                              <button
-                                type="button"
-                                onClick={() => handleDeletePersonalTemplate(tpl.id, tpl.title)}
-                                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem' }}
-                                title="Delete personal template"
-                              >
-                                <Trash2 size={15} color="var(--danger)" />
-                              </button>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEdit(tpl)}
+                                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem' }}
+                                  title="Edit personal template"
+                                >
+                                  <Pencil size={14} color="var(--primary)" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePersonalTemplate(tpl.id, tpl.title)}
+                                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem' }}
+                                  title="Delete personal template"
+                                >
+                                  <Trash2 size={14} color="var(--danger)" />
+                                </button>
+                              </div>
                             </div>
 
                             <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-main)', margin: '0 0 0.35rem 0' }}>

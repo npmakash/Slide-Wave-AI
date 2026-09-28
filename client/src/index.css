@@ -1292,7 +1292,10 @@ textarea.form-control {
     text-overflow: ellipsis;
   }
 
-  .credits-pill-header {
+  .credits-pill-header,
+  .navbar .theme-toggle-btn,
+  .navbar .navbar-user-trigger,
+  .navbar .user-nav .btn-secondary {
     display: none !important;
   }
 
