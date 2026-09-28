@@ -17,4 +17,9 @@ router.get('/users/:email/transactions', AdminController.getUserTransactions);
 router.get('/stats', AdminController.getAdminStats);
 router.post('/credits/add', AdminController.addCreditsToUser);
 
+// Coupon management routes
+router.get('/coupons', AdminController.getAllCoupons);
+router.post('/coupons', AdminController.createCoupon);
+router.delete('/coupons/:id', AdminController.deleteCoupon);
+
 module.exports = router;

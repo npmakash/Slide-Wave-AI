@@ -12,5 +12,6 @@ router.get('/credits', requireAuth, CreditController.getCreditStatus);
 router.post('/credits/estimate', requireAuth, CreditController.estimateCredits);
 router.post('/credits/create-order', requireAuth, CreditController.createOrder);
 router.post('/credits/verify-payment', requireAuth, CreditController.verifyPayment);
+router.post('/credits/redeem-coupon', requireAuth, CreditController.redeemCoupon);
 
 module.exports = router;

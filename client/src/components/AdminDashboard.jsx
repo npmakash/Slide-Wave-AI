@@ -1,16 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Users, Sparkles, Presentation, Search, PlusCircle, ShieldCheck, X, RefreshCw, MessageSquare, Trash2, Mail, Trash, Clock, History, ArrowUpRight, ArrowDownRight, Gift } from 'lucide-react';
+import { Users, Sparkles, Presentation, Search, PlusCircle, ShieldCheck, X, RefreshCw, MessageSquare, Trash2, Mail, Trash, Clock, History, ArrowUpRight, ArrowDownRight, Gift, Ticket, Calendar, Hash, Tag } from 'lucide-react';
 import api from '../services/api';
 import socket from '../services/socket';
 import { useToast } from '../context/ToastContext';
 
 export default function AdminDashboard({ onRefreshCredits }) {
-  const [activeSubTab, setActiveSubTab] = useState('users'); // 'users' | 'inbox'
+  const [activeSubTab, setActiveSubTab] = useState('users'); // 'users' | 'inbox' | 'coupons'
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [supportMessages, setSupportMessages] = useState([]);
+  const [coupons, setCoupons] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // Raise Coupon Form State
+  const [newCouponCode, setNewCouponCode] = useState('');
+  const [newCouponCredits, setNewCouponCredits] = useState(50);
+  const [newCouponMaxUses, setNewCouponMaxUses] = useState(50);
+  const [newCouponExpiry, setNewCouponExpiry] = useState('');
+  const [raisingCoupon, setRaisingCoupon] = useState(false);
 
   // Grant Credits Modal state
   const [selectedUser, setSelectedUser] = useState(null);
@@ -33,15 +41,17 @@ export default function AdminDashboard({ onRefreshCredits }) {
   const fetchAdminData = useCallback(async () => {
     try {
       setLoading(true);
-      const [statsRes, usersRes, supportRes] = await Promise.all([
+      const [statsRes, usersRes, supportRes, couponsRes] = await Promise.all([
         api.get('/api/admin/stats'),
         api.get('/api/admin/users'),
         api.get('/api/support/admin'),
+        api.get('/api/admin/coupons'),
       ]);
 
       if (statsRes.data.success) setStats(statsRes.data.stats);
       if (usersRes.data.success) setUsers(usersRes.data.users || []);
       if (supportRes.data.success) setSupportMessages(supportRes.data.messages || []);
+      if (couponsRes.data.success) setCoupons(couponsRes.data.coupons || []);
     } catch (err) {
       showToast(err.response?.data?.error || 'Failed to load Admin Dashboard data', 'error');
     } finally {
@@ -157,6 +167,55 @@ export default function AdminDashboard({ onRefreshCredits }) {
     }
   };
 
+  // Raise a new coupon (Admin)
+  const handleRaiseCoupon = async (e) => {
+    e.preventDefault();
+    if (!newCouponCode.trim()) {
+      showToast('Please enter a coupon code.', 'warning');
+      return;
+    }
+    if (!newCouponCredits || newCouponCredits <= 0) {
+      showToast('Please enter valid credit amount.', 'warning');
+      return;
+    }
+
+    try {
+      setRaisingCoupon(true);
+      const res = await api.post('/api/admin/coupons', {
+        code: newCouponCode.trim(),
+        credits: Number(newCouponCredits),
+        maxUses: Number(newCouponMaxUses || 1),
+        expiresAt: newCouponExpiry || null,
+      });
+
+      if (res.data.success) {
+        showToast(res.data.message || `🎟️ Raised coupon '${res.data.coupon.code}'!`, 'success');
+        setNewCouponCode('');
+        setNewCouponCredits(50);
+        setNewCouponMaxUses(50);
+        setNewCouponExpiry('');
+        fetchAdminData();
+      }
+    } catch (err) {
+      showToast(err.response?.data?.error || err.message || 'Failed to raise coupon', 'error');
+    } finally {
+      setRaisingCoupon(false);
+    }
+  };
+
+  // Delete coupon
+  const handleDeleteCoupon = async (id) => {
+    try {
+      const res = await api.delete(`/api/admin/coupons/${id}`);
+      if (res.data.success) {
+        showToast('Coupon deleted', 'success');
+        setCoupons((prev) => prev.filter((c) => c.id !== id));
+      }
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to delete coupon', 'error');
+    }
+  };
+
   const filteredUsers = users.filter(
     (u) =>
       u.email.toLowerCase().includes(search.toLowerCase()) ||
@@ -217,6 +276,31 @@ export default function AdminDashboard({ onRefreshCredits }) {
               }}
             >
               {supportMessages.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          className={`source-toggle-btn ${activeSubTab === 'coupons' ? 'active' : ''}`}
+          onClick={() => setActiveSubTab('coupons')}
+          style={{ position: 'relative' }}
+        >
+          <Ticket size={16} />
+          <span>Manage Coupons</span>
+          {coupons.length > 0 && (
+            <span
+              style={{
+                background: 'var(--accent)',
+                color: '#ffffff',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                borderRadius: '12px',
+                padding: '0.1rem 0.45rem',
+                marginLeft: '0.35rem',
+              }}
+            >
+              {coupons.length}
             </span>
           )}
         </button>
@@ -487,6 +571,230 @@ export default function AdminDashboard({ onRefreshCredits }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB 3: MANAGE & RAISE COUPONS */}
+      {activeSubTab === 'coupons' && (
+        <div>
+          {/* Raise Coupon Card */}
+          <div
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--bg-card-border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '1.35rem',
+              marginBottom: '1.75rem',
+              boxShadow: 'var(--shadow-card)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
+              <div style={{ background: 'var(--accent-light)', padding: '0.5rem', borderRadius: '10px', color: 'var(--accent)' }}>
+                <Ticket size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-main)', fontWeight: 600 }}>Raise a New Coupon</h3>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Create promotional codes with custom credits, max usage limits, and validity dates
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleRaiseCoupon}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.25rem' }}>
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label htmlFor="coupon-code-input" style={{ fontSize: '0.82rem' }}>
+                    <Tag size={14} color="var(--primary)" />
+                    Coupon Code *
+                  </label>
+                  <input
+                    type="text"
+                    id="coupon-code-input"
+                    className="form-control"
+                    placeholder="e.g. SUMMER50"
+                    value={newCouponCode}
+                    onChange={(e) => setNewCouponCode(e.target.value.toUpperCase())}
+                    style={{ textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}
+                    required
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label htmlFor="coupon-credits-input" style={{ fontSize: '0.82rem' }}>
+                    <Sparkles size={14} color="var(--accent)" />
+                    Bonus Credits *
+                  </label>
+                  <input
+                    type="number"
+                    id="coupon-credits-input"
+                    className="form-control"
+                    placeholder="e.g. 50"
+                    value={newCouponCredits}
+                    onChange={(e) => setNewCouponCredits(e.target.value)}
+                    min="1"
+                    required
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label htmlFor="coupon-maxuses-input" style={{ fontSize: '0.82rem' }}>
+                    <Hash size={14} color="var(--success)" />
+                    Number of Coupons (Max Uses) *
+                  </label>
+                  <input
+                    type="number"
+                    id="coupon-maxuses-input"
+                    className="form-control"
+                    placeholder="e.g. 100"
+                    value={newCouponMaxUses}
+                    onChange={(e) => setNewCouponMaxUses(e.target.value)}
+                    min="1"
+                    required
+                  />
+                </div>
+
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label htmlFor="coupon-expiry-input" style={{ fontSize: '0.82rem' }}>
+                    <Calendar size={14} color="var(--warning)" />
+                    Validity / Expiry Date (Optional)
+                  </label>
+                  <input
+                    type="date"
+                    id="coupon-expiry-input"
+                    className="form-control"
+                    value={newCouponExpiry}
+                    onChange={(e) => setNewCouponExpiry(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button type="submit" className="btn btn-primary" disabled={raisingCoupon || !newCouponCode.trim()}>
+                  {raisingCoupon ? (
+                    <div className="spinner" style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#fff' }} />
+                  ) : (
+                    <Ticket size={16} />
+                  )}
+                  <span>Raise Coupon Code</span>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Active & Raised Coupons Directory */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-main)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span>Raised Coupons Directory</span>
+                <span style={{ fontSize: '0.75rem', background: 'var(--accent-light)', color: 'var(--accent)', padding: '0.15rem 0.55rem', borderRadius: '12px', fontWeight: 700 }}>
+                  {coupons.length} Total
+                </span>
+              </h3>
+            </div>
+
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '3rem 0' }}>
+                <div className="spinner" style={{ width: '28px', height: '28px', margin: '0 auto 1rem' }} />
+                <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>Loading coupons list...</div>
+              </div>
+            ) : coupons.length === 0 ? (
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '3rem 1rem', background: 'var(--bg-body)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--bg-card-border)' }}>
+                <Ticket size={36} color="var(--text-muted)" style={{ margin: '0 auto 0.75rem', opacity: 0.6 }} />
+                <p style={{ fontSize: '0.92rem', fontWeight: 500 }}>No active coupons raised yet. Fill out the form above to create one.</p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--bg-card-border)' }}>
+                <table className="preview-table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th>Coupon Code</th>
+                      <th>Bonus Credits</th>
+                      <th>Usages (Used / Max)</th>
+                      <th>Validity</th>
+                      <th>Status</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coupons.map((c) => {
+                      const isExpired = c.status === 'expired';
+                      const isExhausted = c.status === 'exhausted';
+                      return (
+                        <tr key={c.id}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, color: 'var(--primary)', letterSpacing: '0.5px' }}>
+                              <Ticket size={16} />
+                              <span>{c.code}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{ fontWeight: 700, color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                              <Sparkles size={14} />
+                              +{c.credits} Credits
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                              {c.usedCount} / {c.maxUses} used
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            {c.expiresAt ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                                <Calendar size={13} />
+                                {new Date(c.expiresAt).toLocaleDateString()}
+                              </span>
+                            ) : (
+                              <span style={{ color: 'var(--success)', fontWeight: 500 }}>No Expiry (Lifetime)</span>
+                            )}
+                          </td>
+                          <td>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '0.15rem 0.55rem',
+                                borderRadius: '12px',
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                background:
+                                  c.status === 'active'
+                                    ? 'rgba(16, 185, 129, 0.15)'
+                                    : isExpired
+                                    ? 'rgba(239, 68, 68, 0.15)'
+                                    : 'rgba(245, 158, 11, 0.15)',
+                                color:
+                                  c.status === 'active'
+                                    ? 'var(--success)'
+                                    : isExpired
+                                    ? 'var(--danger)'
+                                    : 'var(--warning)',
+                              }}
+                            >
+                              {c.status}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              className="btn btn-danger"
+                              onClick={() => handleDeleteCoupon(c.id)}
+                              style={{ padding: '0.3rem 0.65rem', fontSize: '0.78rem', minHeight: '32px' }}
+                              title="Delete coupon"
+                            >
+                              <Trash2 size={14} />
+                              <span>Delete</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

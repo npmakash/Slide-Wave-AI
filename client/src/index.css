@@ -1356,3 +1356,62 @@ textarea.form-control {
     gap: 0.4rem;
   }
 }
+
+/* ==========================================================================
+   Modern Custom Beautified Scrollbars (Firefox & Webkit)
+   ========================================================================== */
+
+/* Firefox Standard Scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.35) transparent;
+}
+
+[data-theme="light"] * {
+  scrollbar-color: rgba(79, 70, 229, 0.35) transparent;
+}
+
+/* Chrome, Safari, Edge Webkit Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(79, 70, 229, 0.25);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+  box-shadow: var(--shadow-glow);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--primary-hover);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Enhanced smooth scroll containers for modals, textareas, code & tables */
+.modal-card,
+.modal-body,
+textarea.form-control,
+.sidebar-nav,
+div[style*="overflow"] {
+  scrollbar-gutter: stable;
+}

@@ -9,6 +9,7 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const History = require('../models/History');
 const CreditService = require('../services/CreditService');
+const CouponService = require('../services/CouponService');
 const logger = require('../utils/logger');
 
 const CREDITS_FILE = path.join(__dirname, '..', 'data', 'credits.json');
@@ -187,6 +188,61 @@ class AdminController {
     } catch (err) {
       logger.error(`Admin getUserTransactions error: ${err.message}`);
       res.status(500).json({ error: err.message });
+    }
+  }
+
+  /** POST /api/admin/coupons — Create a new promotional coupon */
+  static async createCoupon(req, res) {
+    try {
+      const { code, credits, maxUses, expiresAt } = req.body;
+      const adminEmail = req.session?.user?.email || 'admin';
+
+      const coupon = await CouponService.createCoupon({
+        code,
+        credits,
+        maxUses,
+        expiresAt,
+        createdBy: adminEmail,
+      });
+
+      res.status(201).json({
+        success: true,
+        coupon,
+        message: `Successfully created coupon '${coupon.code}' for ${coupon.credits} credits!`,
+      });
+    } catch (err) {
+      logger.error(`Admin createCoupon error: ${err.message}`);
+      res.status(400).json({ error: err.message });
+    }
+  }
+
+  /** GET /api/admin/coupons — List all promotional coupons */
+  static async getAllCoupons(req, res) {
+    try {
+      const coupons = await CouponService.getAllCoupons();
+      res.json({
+        success: true,
+        count: coupons.length,
+        coupons,
+      });
+    } catch (err) {
+      logger.error(`Admin getAllCoupons error: ${err.message}`);
+      res.status(500).json({ error: err.message });
+    }
+  }
+
+  /** DELETE /api/admin/coupons/:id — Delete a coupon */
+  static async deleteCoupon(req, res) {
+    try {
+      const { id } = req.params;
+      await CouponService.deleteCoupon(id);
+      res.json({
+        success: true,
+        message: 'Coupon deleted successfully.',
+      });
+    } catch (err) {
+      logger.error(`Admin deleteCoupon error: ${err.message}`);
+      res.status(400).json({ error: err.message });
     }
   }
 }

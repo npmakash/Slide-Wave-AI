@@ -6,6 +6,7 @@
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const CreditService = require('../services/CreditService');
+const CouponService = require('../services/CouponService');
 const SheetsService = require('../services/SheetsService');
 const GoogleAuthService = require('../services/GoogleAuthService');
 const { extractGoogleFileId } = require('../middleware/validate.middleware');
@@ -176,6 +177,23 @@ class CreditController {
     }
   }
 
+  /** POST /api/credits/redeem-coupon */
+  static async redeemCoupon(req, res) {
+    try {
+      const userId = getUserIdFromReq(req);
+      const { code } = req.body;
+
+      if (!code) {
+        return res.status(400).json({ error: 'Coupon code is required.' });
+      }
+
+      const result = await CouponService.redeemCoupon(code, userId);
+      res.json(result);
+    } catch (err) {
+      logger.error(`Redeem coupon error: ${err.message}`);
+      res.status(400).json({ error: err.message || 'Failed to redeem coupon.' });
+    }
+  }
 }
 
 module.exports = CreditController;

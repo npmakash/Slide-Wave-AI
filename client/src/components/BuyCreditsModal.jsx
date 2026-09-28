@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, CreditCard, Sparkles, CheckCircle, ShieldCheck } from 'lucide-react';
+import { X, CreditCard, Sparkles, CheckCircle, ShieldCheck, Ticket } from 'lucide-react';
 import { useCredits } from '../context/CreditContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -24,6 +24,30 @@ export default function BuyCreditsModal({ onClose }) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [loadingPkg, setLoadingPkg] = useState(null);
+  const [couponCode, setCouponCode] = useState('');
+  const [redeemingCoupon, setRedeemingCoupon] = useState(false);
+
+  const handleRedeemCoupon = async (e) => {
+    e.preventDefault();
+    if (!couponCode.trim()) {
+      showToast('Please enter a coupon code.', 'warning');
+      return;
+    }
+
+    try {
+      setRedeemingCoupon(true);
+      const res = await api.post('/api/credits/redeem-coupon', { code: couponCode.trim() });
+      if (res.data.success) {
+        showToast(res.data.message || `🎉 Successfully redeemed ${res.data.creditsAdded} credits!`, 'success');
+        setCouponCode('');
+        await fetchCredits();
+      }
+    } catch (err) {
+      showToast(err.response?.data?.error || err.message || 'Failed to redeem coupon', 'error');
+    } finally {
+      setRedeemingCoupon(false);
+    }
+  };
 
   const handlePurchase = async (pkgId) => {
     try {
@@ -146,7 +170,7 @@ export default function BuyCreditsModal({ onClose }) {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: '1.25rem',
+              marginBottom: '1rem',
             }}
           >
             <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Your Current Balance</span>
@@ -155,6 +179,59 @@ export default function BuyCreditsModal({ onClose }) {
               {balance} Credits
             </span>
           </div>
+
+          {/* Redeem Coupon Option — Positioned directly below Your Current Balance */}
+          <form
+            onSubmit={handleRedeemCoupon}
+            style={{
+              background: 'var(--bg-body)',
+              border: '1px dashed var(--accent-border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '0.85rem 1rem',
+              marginBottom: '1.35rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '0.75rem',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: '1 1 200px' }}>
+              <Ticket size={20} color="var(--accent)" style={{ flexShrink: 0 }} />
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Redeem Coupon (e.g. WELCOME50)"
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                style={{
+                  fontSize: '0.88rem',
+                  padding: '0.45rem 0.75rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.8px',
+                  fontWeight: 600,
+                }}
+              />
+            </div>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={redeemingCoupon || !couponCode.trim()}
+              style={{
+                padding: '0.45rem 1.1rem',
+                fontSize: '0.85rem',
+                minHeight: '38px',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {redeemingCoupon ? (
+                <div className="spinner" style={{ width: '16px', height: '16px', borderColor: 'rgba(255, 255, 255, 0.3)', borderTopColor: '#fff' }} />
+              ) : (
+                <Ticket size={15} />
+              )}
+              <span>Redeem Coupon</span>
+            </button>
+          </form>
 
           {/* Pricing Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
