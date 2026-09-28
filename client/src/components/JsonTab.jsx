@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, Rocket, FileText, Image as ImageIcon, Code, Link, Type, FileCode, Copy, Check } from 'lucide-react';
+import { Upload, Rocket, FileText, Image as ImageIcon, Code, Link, Type, FileCode, Copy, Check, LayoutTemplate, Globe, User } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useCredits } from '../context/CreditContext';
@@ -11,8 +11,8 @@ const DEFAULT_JSON = `[
   { "name": "Alice", "city": "London", "score": "88" }
 ]`;
 
-export default function JsonTab({ onStartJob, activeJobResult, selectedTemplateUrl }) {
-  const [templateUrl, setTemplateUrl] = useState(selectedTemplateUrl || DEFAULT_TEMPLATE_URL);
+export default function JsonTab({ onStartJob, activeJobResult, selectedTemplateUrl, selectedTemplate, onOpenTemplatePicker }) {
+  const [templateUrl, setTemplateUrl] = useState(selectedTemplate?.templateUrl || selectedTemplateUrl || DEFAULT_TEMPLATE_URL);
   const [jsonString, setJsonString] = useState(DEFAULT_JSON);
   const [copied, setCopied] = useState(false);
   const [outputName, setOutputName] = useState('');
@@ -27,10 +27,12 @@ export default function JsonTab({ onStartJob, activeJobResult, selectedTemplateU
   const { fetchCredits, openBuyModal } = useCredits();
 
   useEffect(() => {
-    if (selectedTemplateUrl) {
+    if (selectedTemplate?.templateUrl) {
+      setTemplateUrl(selectedTemplate.templateUrl);
+    } else if (selectedTemplateUrl) {
       setTemplateUrl(selectedTemplateUrl);
     }
-  }, [selectedTemplateUrl]);
+  }, [selectedTemplate, selectedTemplateUrl]);
 
   const handleFileUpload = (file) => {
     if (!file.name.endsWith('.json')) {
@@ -134,21 +136,74 @@ export default function JsonTab({ onStartJob, activeJobResult, selectedTemplateU
 
       <form onSubmit={handleFormSubmit}>
         <div className="form-group">
-          <label htmlFor="json-template-url">
-            <Link size={16} />
-            <span>Template Slide URL *</span>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <LayoutTemplate size={16} color="var(--primary)" />
+              <span>Slide Presentation Template *</span>
+            </span>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+              {selectedTemplate?.isPersonal ? 'Personal Saved Template' : 'Public Template'}
+            </span>
           </label>
-          <div className="input-with-icon">
-            <Link size={17} className="input-icon" />
-            <input
-              type="url"
-              id="json-template-url"
-              className="form-control"
-              value={templateUrl}
-              onChange={(e) => setTemplateUrl(e.target.value)}
-              placeholder="https://docs.google.com/presentation/d/1abc.../edit"
-              required
-            />
+
+          <div style={{
+            background: 'var(--bg-body)',
+            border: '1px solid var(--bg-card-border)',
+            borderRadius: 'var(--radius-md)',
+            padding: '0.9rem 1.1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            flexWrap: 'wrap',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flex: 1, minWidth: '220px' }}>
+              <div style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '10px',
+                background: selectedTemplate?.isPersonal ? 'var(--accent-light)' : 'var(--primary-light)',
+                color: selectedTemplate?.isPersonal ? 'var(--accent)' : 'var(--primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                {selectedTemplate?.isPersonal ? <User size={22} /> : <Globe size={22} />}
+              </div>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {selectedTemplate?.title || 'Modern Certificate Template'}
+                  </h4>
+                  <span style={{
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    background: selectedTemplate?.isPersonal ? 'var(--accent-light)' : 'var(--primary-light)',
+                    color: selectedTemplate?.isPersonal ? 'var(--accent)' : 'var(--primary)',
+                    padding: '0.12rem 0.5rem',
+                    borderRadius: '10px',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {selectedTemplate?.isPersonal ? 'PERSONAL' : 'PUBLIC'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {templateUrl}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onOpenTemplatePicker}
+              style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.45rem' }}
+            >
+              <LayoutTemplate size={16} color="var(--primary)" />
+              <span>Choose Template</span>
+            </button>
           </div>
         </div>
 

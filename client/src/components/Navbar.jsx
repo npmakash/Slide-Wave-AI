@@ -1,10 +1,10 @@
 import React from 'react';
-import { Menu, Sparkles, PlusCircle, User, Table, Code, Grid, Clock, Sun, Moon, ShieldCheck, Users, LayoutTemplate, Layers } from 'lucide-react';
+import { Menu, Sparkles, PlusCircle, User, Table, Code, Grid, Clock, Sun, Moon, ShieldCheck, Users, LayoutTemplate, Layers, FileCheck, Info, Mail } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCredits } from '../context/CreditContext';
 import { useTheme } from '../context/ThemeContext';
 
-export default function Navbar({ activeTab, onToggleMobileSidebar, onOpenBuyCredits, onOpenAccount }) {
+export default function Navbar({ activeTab, onToggleMobileSidebar, onOpenBuyCredits, onOpenAccount, onOpenSupport }) {
   const { user, authenticated } = useAuth();
   const { balance } = useCredits();
   const { isDark, toggleTheme } = useTheme();
@@ -29,8 +29,14 @@ export default function Navbar({ activeTab, onToggleMobileSidebar, onOpenBuyCred
         return { title: 'Slide Templates Gallery', icon: LayoutTemplate };
       case 'history':
         return { title: isAdmin ? 'All Presentation Logs' : 'Generation History', icon: Clock };
+      case 'privacy':
+        return { title: 'Privacy Policy', icon: ShieldCheck };
+      case 'terms':
+        return { title: 'Terms of Service', icon: FileCheck };
+      case 'about':
+        return { title: 'About Slide Wave AI', icon: Info };
       default:
-        return { title: isAdmin ? 'Admin Console' : 'Presentation Generator', icon: ShieldCheck };
+        return { title: isAdmin ? 'Admin Console' : 'Slide Wave AI', icon: ShieldCheck };
     }
   };
 
@@ -61,6 +67,18 @@ export default function Navbar({ activeTab, onToggleMobileSidebar, onOpenBuyCred
       </div>
 
       <div className="user-nav">
+        {/* Developer Support Trigger for Guest & Authenticated Users */}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={onOpenSupport}
+          title="Developer Support"
+          style={{ padding: '0.45rem 0.85rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+        >
+          <Mail size={15} color="var(--primary)" />
+          <span className="hide-mobile">Support</span>
+        </button>
+
         {/* Dark / Light Mode Switch Button */}
         <button
           type="button"

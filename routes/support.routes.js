@@ -9,8 +9,8 @@ const SupportController = require('../controllers/support.controller');
 const { requireAuth } = require('../middleware/auth.middleware');
 const { requireAdmin } = require('../middleware/admin.middleware');
 
-// User route — send support message (authenticated users only)
-router.post('/', requireAuth, SupportController.sendMessage);
+// Send support message (authenticated or guest users)
+router.post('/', SupportController.sendMessage);
 
 // Admin routes — inbox viewing and database cleanup/reset
 router.get('/admin', requireAuth, requireAdmin, SupportController.getAdminMessages);

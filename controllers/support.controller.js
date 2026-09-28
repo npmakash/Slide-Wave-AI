@@ -11,11 +11,15 @@ class SupportController {
   /** POST /api/support — Send message from user to Admin */
   static async sendMessage(req, res) {
     try {
-      const { message } = req.body;
+      const { message, email, name } = req.body;
       const user = req.session?.user;
 
-      if (!user || !user.email) {
-        return res.status(401).json({ error: 'Authentication required to send support message.' });
+      let userEmail = user?.email || (email ? String(email).trim() : null);
+      let userName = user?.name || (name ? String(name).trim() : 'Guest User');
+      let userPicture = user?.picture || '';
+
+      if (!userEmail) {
+        return res.status(400).json({ error: 'Contact email address is required to send support message.' });
       }
 
       if (!message || !String(message).trim()) {
@@ -23,9 +27,9 @@ class SupportController {
       }
 
       const created = await SupportService.createMessage({
-        userEmail: user.email,
-        userName: user.name,
-        userPicture: user.picture,
+        userEmail,
+        userName,
+        userPicture,
         message: String(message).trim(),
       });
 

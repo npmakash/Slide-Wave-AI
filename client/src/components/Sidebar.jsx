@@ -1,9 +1,9 @@
 import React from 'react';
-import { Presentation, Table, Code, Sparkles, Grid, Clock, User, X, LogOut, Sun, Moon, ShieldCheck, Users, LayoutTemplate, Layers } from 'lucide-react';
+import { Presentation, Table, Code, Sparkles, Grid, Clock, User, X, LogOut, Sun, Moon, ShieldCheck, Users, LayoutTemplate, Layers, FileCheck, Info, Mail } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
-export default function Sidebar({ activeTab, setActiveTab, isOpen, onClose, onOpenAccount }) {
+export default function Sidebar({ activeTab, setActiveTab, isOpen, onClose, onOpenAccount, onNavigatePage, onOpenSupport }) {
   const { user, authenticated, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
 
@@ -138,7 +138,7 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onClose, onOp
             );
           })}
 
-          <div className="sidebar-nav-title" style={{ marginTop: '1.5rem' }}>PREFERENCES</div>
+          <div className="sidebar-nav-title" style={{ marginTop: '1.5rem' }}>PREFERENCES & LEGAL</div>
           <button
             type="button"
             className="sidebar-nav-item"
@@ -150,6 +150,74 @@ export default function Sidebar({ activeTab, setActiveTab, isOpen, onClose, onOp
             <div className="nav-item-content">
               <span className="nav-item-label">{isDark ? 'Light Mode' : 'Dark Mode'}</span>
               <span className="nav-item-sublabel">Switch app color theme</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className={`sidebar-nav-item ${activeTab === 'privacy' ? 'active' : ''}`}
+            onClick={() => {
+              if (onNavigatePage) onNavigatePage('/privacy');
+              if (onClose) onClose();
+            }}
+          >
+            <div className="nav-item-icon">
+              <ShieldCheck size={19} />
+            </div>
+            <div className="nav-item-content">
+              <span className="nav-item-label">Privacy Policy</span>
+              <span className="nav-item-sublabel">Data usage & protections</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className={`sidebar-nav-item ${activeTab === 'terms' ? 'active' : ''}`}
+            onClick={() => {
+              if (onNavigatePage) onNavigatePage('/terms');
+              if (onClose) onClose();
+            }}
+          >
+            <div className="nav-item-icon">
+              <FileCheck size={19} />
+            </div>
+            <div className="nav-item-content">
+              <span className="nav-item-label">Terms of Service</span>
+              <span className="nav-item-sublabel">Guidelines & conditions</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className={`sidebar-nav-item ${activeTab === 'about' ? 'active' : ''}`}
+            onClick={() => {
+              if (onNavigatePage) onNavigatePage('/about');
+              if (onClose) onClose();
+            }}
+          >
+            <div className="nav-item-icon">
+              <Info size={19} />
+            </div>
+            <div className="nav-item-content">
+              <span className="nav-item-label">About Us</span>
+              <span className="nav-item-sublabel">Slide Wave AI engine</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className="sidebar-nav-item"
+            onClick={() => {
+              if (onOpenSupport) onOpenSupport();
+              if (onClose) onClose();
+            }}
+          >
+            <div className="nav-item-icon">
+              <Mail size={19} color="var(--primary)" />
+            </div>
+            <div className="nav-item-content">
+              <span className="nav-item-label" style={{ color: 'var(--primary)', fontWeight: 600 }}>Developer Support</span>
+              <span className="nav-item-sublabel">Contact our dev team</span>
             </div>
           </button>
         </nav>
