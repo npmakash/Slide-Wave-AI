@@ -32,12 +32,13 @@ function createOAuth2Client() {
  * Get the Google OAuth2 authorization URL
  * @returns {string} Authorization URL to redirect user to
  */
-function getAuthUrl() {
+function getAuthUrl(state) {
   const client = createOAuth2Client();
   return client.generateAuthUrl({
     access_type: 'offline',       // Get refresh token
     prompt: 'consent',            // Always show consent screen (ensures refresh token)
     scope: SCOPES,
+    state,
   });
 }
 

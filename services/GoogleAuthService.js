@@ -12,8 +12,8 @@ class GoogleAuthService {
    * Get the OAuth2 authorization URL
    * @returns {string}
    */
-  static getAuthorizationUrl() {
-    return getAuthUrl();
+  static getAuthorizationUrl(state) {
+    return getAuthUrl(state);
   }
 
   /**

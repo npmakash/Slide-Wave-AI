@@ -143,30 +143,76 @@ To ensure persistent credits and zero data loss on production cloud platforms:
 
 ## 📡 API Reference
 
-### Authentication
-- `GET /auth/google`: Initiates Google OAuth 2.0 authorization redirect.
-- `GET /auth/google/callback`: OAuth callback handler.
-- `GET /auth/status`: Check current session & live credit balance.
-- `POST /auth/logout`: Revoke session and log out.
+The Android client uses the same Express API. Its production base URL is
+`https://slide-wave-ai.onrender.com/`; endpoint paths below are relative to that URL.
 
-### Credits & Payments
-- `GET /api/credits`: Get user credit balance, transaction history & packages.
-- `POST /api/credits/estimate`: Calculate required credits for a job.
-- `POST /api/credits/create-order`: Create Razorpay payment order.
-- `POST /api/credits/verify-payment`: Verify payment signature and add credits.
+| Method | Path | Access | Purpose |
+|---|---|---|---|
+| `GET` | `/auth/google` | Public | Start Google OAuth |
+| `GET` | `/auth/google/callback` | OAuth callback | Complete OAuth and create a session |
+| `POST` | `/auth/mobile/exchange` | One-time ticket + PKCE verifier | Exchange Android OAuth ticket for an app session |
+| `GET` | `/auth/status` | Public | Check the session and current user/credits |
+| `POST` | `/auth/logout` | Public | Revoke tokens and end the session |
+| `POST` | `/api/detect-placeholders` | Signed in | Find placeholders in a Slides template |
+| `POST` | `/api/generate-sheet` | Signed in | Generate presentations from Sheets |
+| `POST` | `/api/generate-json` | Signed in | Generate presentations from JSON |
+| `POST` | `/api/generate-csv` | Signed in | Generate presentations from CSV |
+| `GET` | `/api/status/:jobId` | Signed in | Get generation job status |
+| `POST` | `/api/cancel/:jobId` | Signed in | Cancel a generation job |
+| `GET` | `/api/logs/:jobId` | Signed in | Fetch generation logs |
+| `GET` | `/api/download/pdf/:id` | Signed in | Download a generated PDF |
+| `GET` | `/api/download/images/:id` | Signed in | Download generated slide images |
+| `GET` | `/api/credits` | Signed in | Get balance, transactions, and credit packages |
+| `POST` | `/api/credits/estimate` | Signed in | Estimate a job's credit cost |
+| `POST` | `/api/credits/create-order` | Signed in | Create a Razorpay order |
+| `POST` | `/api/credits/verify-payment` | Signed in | Verify payment and add credits |
+| `POST` | `/api/credits/redeem-coupon` | Signed in | Redeem a coupon |
+| `GET` | `/api/history` | Signed in | List generation history |
+| `DELETE` | `/api/history/:id` | Signed in | Delete a history item |
+| `POST` | `/api/history/bulk-delete` | Signed in | Delete multiple history items |
+| `GET` | `/api/templates` | Public | List presentation templates |
+| `POST` | `/api/templates` | Admin | Create a template |
+| `PUT` | `/api/templates/:id` | Admin | Update a template |
+| `DELETE` | `/api/templates/:id` | Admin | Delete a template |
+| `POST` | `/api/gemini/generate-questions` | Signed in | Generate questions with Gemini |
+| `POST` | `/api/gemini/parse-text` | Signed in | Parse text with Gemini |
+| `POST` | `/api/support` | Public | Submit a support message |
+| `GET` | `/api/support/admin` | Admin | List support messages |
+| `DELETE` | `/api/support/admin` | Admin | Clear support messages |
+| `DELETE` | `/api/support/admin/:id` | Admin | Delete a support message |
+| `GET` | `/api/admin/users` | Admin | List users |
+| `GET` | `/api/admin/users/:email/transactions` | Admin | List a user's transactions |
+| `GET` | `/api/admin/stats` | Admin | Get admin statistics |
+| `POST` | `/api/admin/credits/add` | Admin | Grant credits |
+| `GET` | `/api/admin/coupons` | Admin | List coupons |
+| `POST` | `/api/admin/coupons` | Admin | Create a coupon |
+| `DELETE` | `/api/admin/coupons/:id` | Admin | Delete a coupon |
 
-### Generation & Jobs
-- `POST /api/detect-placeholders`: Scan slide template and list detected `{{placeholders}}`.
-- `POST /api/generate-sheet`: Start bulk generation from Google Sheets.
-- `POST /api/generate-json`: Start bulk generation from JSON array.
-- `GET /api/status/:jobId`: Poll job execution progress.
-- `POST /api/cancel/:jobId`: Cancel active generation job.
-- `GET /api/logs/:jobId`: Download detailed text log for a job.
+Authenticated endpoints use the Express `connect.sid` session cookie. Admin endpoints
+also require the signed-in account to match the configured administrator.
 
-### Admin Console
-- `GET /api/admin/users`: List all users, generation counts & credit balances.
-- `GET /api/admin/stats`: Aggregate system analytics.
-- `POST /api/admin/credits/add`: Grant admin credits to a user email.
+### Android app
+
+The Android base URL is set in `android/app/build.gradle.kts` and resolved by
+`RetrofitClient`. To build the debug APK:
+
+```bash
+cd android
+./gradlew assembleDebug
+```
+
+The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+For Google sign-in on Render, set `GOOGLE_REDIRECT_URI` to
+`https://slide-wave-ai.onrender.com/auth/google/callback` in the Render service and
+add that exact URL to the Google OAuth client's authorized redirect URIs. Configure
+the service's Google credentials, `SESSION_SECRET`, Gemini key, database URI, and
+payment credentials in Render's environment settings as required by the enabled
+features.
+
+Android sign-in uses a short-lived, single-use ticket and PKCE to hand the OAuth
+session from the Chrome Custom Tab to the app's cookie jar. This requires a working
+MongoDB connection on Render for the temporary ticket and persistent session store.
 
 ---
 
